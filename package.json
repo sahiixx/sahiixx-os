@@ -23,7 +23,7 @@
     "@trpc/server": "^11.0.0",
     "cookie": "^1.0.0",
     "dotenv": "^16.0.0",
-    "drizzle-orm": "^0.38.0",
+    "drizzle-orm": "^0.45.2",
     "framer-motion": "^11.0.0",
     "hono": "^4.0.0",
     "jose": "^5.0.0",
