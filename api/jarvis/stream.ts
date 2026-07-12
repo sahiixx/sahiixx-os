@@ -20,6 +20,12 @@ import { executeTool } from "./tools";
 import { routeCommand } from "./router";
 import { pendingForSession } from "./approvals";
 import type { JarvisMessage, JarvisSession, SSEEvent } from "./types";
+import { sapiSynth, warmSapi } from "./sapi";
+
+// Pre-warm the persistent Windows SAPI process at module load so the first user
+// turn doesn't pay the ~1.5s PowerShell + System.Speech cold start. No-op off
+// Windows. Fire-and-forget — never blocks request handling.
+warmSapi();
 
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 min idle → evicted
 const sessions = new Map<string, JarvisSession>();
@@ -48,30 +54,105 @@ export function registerJarvisRoutes(app: Hono<any>) {
 
     return streamSSE(c, async (stream) => {
       let assistantContent = "";
-      let finalContent = ""; // last round's text — what we speak + persist as the final answer
-      const ttsEnabled = !!(env.elevenLabsApiKey || env.openAiApiKey);
-      // Stream neural TTS per sentence. Emitted BEFORE turn_end so the client's
-      // audioPlayedRef is already true when onTurnEnd fires — it never falls back
-      // to speechSynthesis on top of neural audio (no double voice).
-      const emitAudio = async (text: string) => {
-        if (!ttsEnabled || !text) return;
-        for (const [i, sentence] of splitSentences(text).entries()) {
-          const audio = await synthSpeech(sentence, voiceOverride).catch(() => null);
-          if (audio) await stream.writeSSE({ event: "audio", data: JSON.stringify({ seq: i, mime: "audio/mpeg", base64: audio }) });
-        }
+      let finalContent = ""; // last round's text — what we persist as the final answer
+      // Streaming TTS is "keyless-realtime": ElevenLabs/OpenAI when a key exists,
+      // else the built-in Windows SAPI synth (System.Speech — no key, no download).
+      // On non-Windows with no key, ttsEnabled stays false → client speechSynthesis fallback.
+      const hasSapi = process.platform === "win32";
+      const ttsEnabled = !!(env.elevenLabsApiKey || env.openAiApiKey || hasSapi);
+
+      // ── Serialized SSE writer ──────────────────────────────────────────────
+      // The token loop and the TTS synth loop both write SSE concurrently; chain
+      // every write so chunks can't interleave on the wire.
+      let writeChain: Promise<void> = Promise.resolve();
+      const writeSSE = (ev: SSEEvent): Promise<void> => {
+        const data = typeof ev.data === "string" ? ev.data : JSON.stringify(ev.data);
+        writeChain = writeChain.then(
+          () => stream.writeSSE({ event: ev.event, data }).then(() => undefined, () => undefined),
+          () => undefined,
+        );
+        return writeChain;
       };
+
+      // ── Streaming TTS (speak as you think) ──────────────────────────────────
+      // Content tokens are accumulated into sentences; each COMPLETE sentence is
+      // synthesized to audio and emitted the moment it's ready — so Jarvis starts
+      // speaking long before the full answer is generated (real-time voice), while
+      // later sentences synth during earlier ones' playback. Sequential synth
+      // preserves sentence order. ttsEnabled false (no TTS key) → the client falls
+      // back to speechSynthesis on the turn_end text (unchanged). NB this also
+      // speaks brief intermediate narration ("let me check that") — the expected
+      // real-time voice-agent behavior, not a double-speak bug.
+      const sentenceQueue: string[] = [];
+      let sentenceBuf = "";
+      let synDone = false;
+      let notifierResolve: (() => void) | null = null;
+      const notify = () => { if (notifierResolve) { const r = notifierResolve; notifierResolve = null; r(); } };
+      const waitForNotify = () => new Promise<void>((r) => { notifierResolve = r; });
+
+      const synthLoopPromise = (async () => {
+        while (true) {
+          const s = sentenceQueue.shift();
+          if (s !== undefined) {
+            const a = await synthSpeech(s, voiceOverride).catch(() => null);
+            if (a) await writeSSE({ event: "audio", data: { seq: 0, mime: a.mime, base64: a.base64 } });
+            continue;
+          }
+          if (synDone) break;
+          await waitForNotify();
+        }
+      })();
+
+      function pushSentence(s: string) {
+        const t = s.trim();
+        if (!t) return;
+        sentenceQueue.push(t);
+        notify();
+      }
+      // Commit everything up to the last sentence-terminal (.!? followed by
+      // space / EOS); keep the incomplete tail buffered until more tokens arrive.
+      function appendToken(tok: string) {
+        sentenceBuf += tok;
+        let lastBoundary = -1;
+        for (let i = 0; i < sentenceBuf.length; i++) {
+          if (".!?".includes(sentenceBuf[i])) {
+            const next = sentenceBuf[i + 1];
+            if (next === undefined || /\s/.test(next)) lastBoundary = i + 1;
+          }
+        }
+        if (lastBoundary > 0) {
+          const committed = sentenceBuf.slice(0, lastBoundary);
+          sentenceBuf = sentenceBuf.slice(lastBoundary);
+          for (const piece of committed.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean)) pushSentence(piece);
+        }
+      }
+      // Flush any trailing partial sentence, drain the synth loop, then emit turn_end.
+      async function finalizeTurn(content: string) {
+        finalContent = content;
+        if (ttsEnabled) {
+          if (sentenceBuf.trim()) pushSentence(sentenceBuf);
+          sentenceBuf = "";
+          synDone = true;
+          notify();
+          await synthLoopPromise.catch(() => {});
+        }
+        await writeSSE({ event: "turn_end", data: { content } });
+      }
+
       const write = async (ev: SSEEvent) => {
-        if (ev.event === "token") assistantContent += ev.data;
-        if (ev.event === "turn_end") {
-          // Speak the FINAL answer only (not the intermediate "let me capture…"
-          // narration, which already streamed as tokens). Audio first, then turn_end.
-          const content = (ev.data as { content?: string }).content ?? assistantContent;
-          finalContent = content;
-          await emitAudio(content);
-          await stream.writeSSE({ event: "turn_end", data: JSON.stringify({ content }) });
+        if (ev.event === "token") {
+          const tok = typeof ev.data === "string" ? ev.data : "";
+          assistantContent += tok;
+          if (ttsEnabled && tok) appendToken(tok);
+          await writeSSE(ev);
           return;
         }
-        await stream.writeSSE({ event: ev.event, data: typeof ev.data === "string" ? ev.data : JSON.stringify(ev.data) });
+        if (ev.event === "turn_end") {
+          const content = (ev.data as { content?: string }).content ?? assistantContent;
+          await finalizeTurn(content);
+          return;
+        }
+        await writeSSE(ev);
       };
 
       // ── Fast deterministic command router ("100x" path) ─────────────────────
@@ -101,9 +182,8 @@ export function registerJarvisRoutes(app: Hono<any>) {
           }
           // Speak the canned line + end the turn. If a CONFIRM is pending, the
           // canned line already says so; the user confirms via /approve later.
-          const spoken = route.canned;
-          await write({ event: "token", data: spoken });
-          await write({ event: "turn_end", data: { content: spoken } });
+          await write({ event: "token", data: route.canned });
+          await finalizeTurn(route.canned);
         } catch (e: any) {
           await write({ event: "error", data: { message: `Fast path failed: ${e?.message ?? String(e)}` } });
         }
@@ -148,6 +228,11 @@ export function registerJarvisRoutes(app: Hono<any>) {
       if (finalContent) {
         session.messages.push({ role: "assistant", content: finalContent });
       }
+      // Release the synth loop if the turn never reached finalizeTurn (e.g. an
+      // error mid-turn) so its promise can't hang. No-op if already drained.
+      synDone = true;
+      notify();
+      await synthLoopPromise.catch(() => {});
       session.lastActiveAt = Date.now();
     });
   });
@@ -166,6 +251,29 @@ export function registerJarvisRoutes(app: Hono<any>) {
     if (!body.nonce) return c.json({ detail: "Missing 'nonce'" }, 400);
     const res = await runApproved(body.nonce);
     return c.json(res, res.ok ? 200 : 400);
+  });
+
+  // ── One-shot TTS in Jarvis's configured voice ──────────────────────────────
+  // Synthesize arbitrary text through the SAME provider chain as the realtime
+  // stream (ElevenLabs → OpenAI → keyless Windows SAPI floor), incl. the picked
+  // voiceId. Used by the proactive-alert path so critical signals are spoken in
+  // Jarvis's turn voice instead of the browser speechSynthesis default. No
+  // session, no SSE — just {base64, mime}, or 503 when no provider can synth.
+  app.post("/api/jarvis/speak", async (c) => {
+    const user = await verifyBearer(c.req.raw.headers.get("authorization"));
+    if (!user) return c.json({ detail: "Unauthorized" }, 401);
+    let body: { text?: string; voiceId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ detail: "Invalid JSON body" }, 400);
+    }
+    const text = (body.text ?? "").trim();
+    if (!text) return c.json({ detail: "Missing 'text'" }, 400);
+    const voiceOverride = (body.voiceId ?? "").trim() || null;
+    const a = await synthSpeech(text, voiceOverride).catch(() => null);
+    if (!a) return c.json({ detail: "TTS unavailable" }, 503);
+    return c.json({ base64: a.base64, mime: a.mime });
   });
 
   // ── Session introspection for the tRPC router (jarvis-router.ts) ─────────
@@ -240,11 +348,13 @@ function splitSentences(text: string): string[] {
     .filter(Boolean);
 }
 
-// Synthesize one sentence to base64 mp3. Prefers ElevenLabs (richer voices,
-// low-latency turbo model — the user's chosen provider) when its key is set,
-// then OpenAI tts-1. Returns null on any failure so the caller just skips that
-// sentence and the client falls back to speechSynthesis on the text it has.
-async function synthSpeech(input: string, voiceOverride: string | null = null): Promise<string | null> {
+// Synthesize one sentence to base64 audio. Returns {base64, mime} on success,
+// null on failure (caller skips that sentence → client speechSynthesis fallback
+// on the text it has). Provider chain: ElevenLabs (richer voices, low-latency
+// turbo — the user's chosen provider, mp3) → OpenAI tts-1 (mp3) → Windows SAPI
+// (System.Speech, keyless, WAV). The SAPI floor is what makes streaming TTS
+// actually light up with ZERO paid keys — true "keyless real-time" voice.
+async function synthSpeech(input: string, voiceOverride: string | null = null): Promise<{ base64: string; mime: string } | null> {
   if (!input.trim()) return null;
   const voiceId = voiceOverride || env.elevenLabsVoiceId;
   if (env.elevenLabsApiKey && voiceId) {
@@ -260,7 +370,7 @@ async function synthSpeech(input: string, voiceOverride: string | null = null): 
       });
       if (res.ok) {
         const buf = Buffer.from(await res.arrayBuffer());
-        return buf.toString("base64");
+        return { base64: buf.toString("base64"), mime: "audio/mpeg" };
       }
       // fall through to OpenAI on ElevenLabs error
     } catch {
@@ -273,9 +383,18 @@ async function synthSpeech(input: string, voiceOverride: string | null = null): 
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.openAiApiKey}` },
       body: JSON.stringify({ model: "tts-1", voice: "alloy", input, response_format: "mp3" }),
     });
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    return buf.toString("base64");
+    if (res.ok) {
+      const buf = Buffer.from(await res.arrayBuffer());
+      return { base64: buf.toString("base64"), mime: "audio/mpeg" };
+    }
+  }
+  // Keyless floor — Windows SAPI (System.Speech). Built into Windows, no key, no
+  // download, no egress. Renders WAV. Uses a PERSISTENT warm process (see
+  // sapi.ts) so per-sentence synth is ~25–45ms, not a ~600ms cold spawn each time
+  // — which is what lets audio actually interleave with tokens on fast turns.
+  if (process.platform === "win32") {
+    const wav = await sapiSynth(input, voiceOverride);
+    if (wav) return { base64: wav, mime: "audio/wav" };
   }
   return null;
 }

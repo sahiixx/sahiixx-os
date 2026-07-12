@@ -278,9 +278,26 @@ function safeParseArgs(args: string): Record<string, unknown> {
 // ── Provider streaming ───────────────────────────────────────────────────────
 
 async function* streamChat(provider: string, messages: JarvisMessage[]): AsyncGenerator<Chunk> {
-  if (provider === "openrouter") {
-    yield* openRouterStream(messages);
-  } else {
+  if (provider === "ollama") { yield* ollamaStream(messages); return; }
+  // Cloud providers (openrouter / kimi) with a graceful fallback to the local
+  // Ollama model on a pre-stream HTTP failure, so Jarvis never dies hard if a
+  // cloud key/policy/account is misconfigured (e.g. OpenRouter's data-policy
+  // 404 that blocks every model until openrouter.ai/settings/privacy is flipped).
+  // Only falls back when nothing has been emitted yet, so a mid-stream error can
+  // never produce garbled double output. The warning is yielded as content so the
+  // user hears it via TTS — degradation is never silent.
+  const label = provider === "kimi" ? "Kimi" : "OpenRouter";
+  const cloud = provider === "kimi" ? kimiStream(messages) : openRouterStream(messages);
+  let emitted = false;
+  try {
+    for await (const c of cloud) { emitted = true; yield c; }
+  } catch (e) {
+    if (emitted) throw e; // mid-stream failure — propagate rather than garble
+    yield {
+      content: `[${label} is unavailable right now — falling back to the local model.] `,
+      toolCallsDelta: null,
+      finishReason: null,
+    };
     yield* ollamaStream(messages);
   }
 }
@@ -315,19 +332,30 @@ function toProviderMessages(provider: string, messages: JarvisMessage[]): unknow
   });
 }
 
-async function* openRouterStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
-  const key = env.openRouterApiKey;
+/**
+ * OpenAI-compatible streaming chat completions — shared by OpenRouter and Kimi
+ * (Kimi Coding platform), which both speak the OpenAI SSE protocol. Kimi
+ * additionally emits a `reasoning_content` (thinking) delta field; we ignore it
+ * here and only stream `content` + `tool_calls`, so Jarvis speaks the answer,
+ * not the chain-of-thought. `extraHeaders` carries provider-specific requirements
+ * (e.g. Kimi's mandatory "User-Agent: KimiCLI/1.0" — without it the endpoint 403s).
+ */
+async function* openAICompatibleStream(opts: {
+  url: string; key: string | undefined; model: string;
+  extraHeaders?: Record<string, string>; messages: JarvisMessage[]; label: string;
+}): AsyncGenerator<Chunk> {
+  const { url, key, model, extraHeaders = {}, messages, label } = opts;
   if (!key) {
-    yield { content: "OpenRouter key is not set and no local fallback is configured.", toolCallsDelta: null, finishReason: "stop" };
+    yield { content: `${label} key is not set and no local fallback is configured.`, toolCallsDelta: null, finishReason: "stop" };
     return;
   }
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "X-Title": "SAHIIXX OS Jarvis" },
-    body: JSON.stringify({ model: env.jarvisModel, messages: toProviderMessages("openrouter", messages), stream: true, tools: TOOLS }),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...extraHeaders },
+    body: JSON.stringify({ model, messages: toProviderMessages("openrouter", messages), stream: true, tools: TOOLS }),
   });
   if (!res.ok || !res.body) {
-    throw new Error(`OpenRouter HTTP ${res.status}: ${await res.text().catch(() => "")}`.slice(0, 300));
+    throw new Error(`${label} HTTP ${res.status} at ${url}: ${await res.text().catch(() => "")}`.slice(0, 300));
   }
   for await (const line of readLines(res.body)) {
     if (!line.startsWith("data:")) continue;
@@ -347,6 +375,31 @@ async function* openRouterStream(messages: JarvisMessage[]): AsyncGenerator<Chun
       finishReason: choice.finish_reason ?? null,
     };
   }
+}
+
+async function* openRouterStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
+  yield* openAICompatibleStream({
+    url: "https://openrouter.ai/api/v1/chat/completions",
+    key: env.openRouterApiKey,
+    model: env.jarvisModel,
+    extraHeaders: { "X-Title": "SAHIIXX OS Jarvis" },
+    messages,
+    label: "OpenRouter",
+  });
+}
+
+async function* kimiStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
+  // Kimi Coding platform (sk-kimi-* keys). OpenAI-compatible, but requires the
+  // User-Agent: KimiCLI/1.0 header or it 403s. reasoning_content is ignored by
+  // openAICompatibleStream (only content + tool_calls are streamed).
+  yield* openAICompatibleStream({
+    url: `${env.kimiBaseUrl}/chat/completions`,
+    key: env.kimiApiKey,
+    model: env.jarvisModel,
+    extraHeaders: { "User-Agent": "KimiCLI/1.0" },
+    messages,
+    label: "Kimi",
+  });
 }
 
 async function* ollamaStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {

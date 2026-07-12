@@ -79,7 +79,29 @@ export function useJarvisStream() {
     };
   }, []);
 
-  return { start, stop, approve, isStreaming };
+  // One-shot TTS in Jarvis's configured voice (the same provider chain as the
+  // realtime stream — incl. the keyless Windows SAPI floor). Used by the
+  // proactive-alert path so critical signals are spoken in the SAME voice as
+  // Jarvis's turns, not the browser speechSynthesis default. Returns the audio
+  // blob {base64, mime} or null on any failure (caller falls back to speechSynthesis).
+  const speak = useCallback(async (text: string, voiceId?: string): Promise<{ base64: string; mime: string } | null> => {
+    const token = getToken();
+    if (!token) return null;
+    try {
+      const res = await fetch("/api/jarvis/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ text, voiceId: voiceId || undefined }),
+      });
+      if (!res.ok) return null;
+      const j = (await res.json()) as { base64?: string; mime?: string };
+      return j.base64 ? { base64: j.base64, mime: j.mime ?? "audio/wav" } : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  return { start, stop, approve, speak, isStreaming };
 }
 
 /** Decode the SSE response body and dispatch events to the handlers. */

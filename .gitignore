@@ -4,14 +4,21 @@ dist
 .dev.vars
 .wrangler
 
-# Temp/experimental scripts
+# Temp/experimental scripts (scratch test harnesses + TTS/DB probes)
 _drive*.mjs
 _drive*.ts
 _mint.mjs
 _olltest.mjs
+_dbfix.mjs
+_dbfix.ts
+_dbtest*.mjs
+_jv*.mjs
+_sapi_test.mjs
+_sapi_voice_proof.mjs
+_jvfb.mjs
+_show_tts/
+_show_tts_*.wav
 # Build info
 tsconfig.tsbuildinfo
 # Logs
 *.log
-
-_dbfix.ts

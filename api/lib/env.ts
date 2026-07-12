@@ -40,6 +40,17 @@ export const env = {
   get openRouterApiKey() {
     return g("OPENROUTER_API_KEY") ?? process.env.OPENROUTER_API_KEY;
   },
+  get kimiApiKey() {
+    // "sk-kimi-…" keys from the Kimi Coding platform (platform.kimi.ai / kimi.com/code).
+    // These are NOT valid against api.moonshot.ai/v1 (returns 401) — they must be
+    // used against the kimi base URL below, with a "User-Agent: KimiCLI/1.0" header
+    // (otherwise 403: "only available for Coding Agents such as Kimi CLI, Claude
+    // Code, Roo Code, Kilo Code"). OpenAI-compatible chat/completions protocol.
+    return g("KIMI_API_KEY") ?? process.env.KIMI_API_KEY;
+  },
+  get kimiBaseUrl() {
+    return g("KIMI_BASE_URL") ?? process.env.KIMI_BASE_URL ?? "https://api.kimi.com/coding/v1";
+  },
   get openAiApiKey() {
     return g("OPENAI_API_KEY") ?? process.env.OPENAI_API_KEY;
   },
@@ -80,14 +91,15 @@ export const env = {
   get postizApiKey() {
     return g("POSTIZ_API_KEY") ?? process.env.POSTIZ_API_KEY;
   },
-  /** "openrouter" if an OpenRouter key is present, else "ollama". */
+  /** Provider: explicit JARVIS_PROVIDER wins; else auto-pick kimi > openrouter > ollama. */
   get jarvisProvider() {
     const explicit = g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER;
     if (explicit) return explicit;
-    return this.openRouterApiKey ? "openrouter" : "ollama";
+    return this.kimiApiKey ? "kimi" : this.openRouterApiKey ? "openrouter" : "ollama";
   },
   get jarvisModel() {
-    // OpenRouter model id (default OpenAI-compatible cheap/fast tool-caller).
+    // Model id for the active provider. Default is OpenAI-compatible; set
+    // JARVIS_MODEL explicitly for other providers (e.g. kimi-k2.6 for Kimi).
     return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? "openai/gpt-4o-mini";
   },
   get jarvisOllamaModel() {

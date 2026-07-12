@@ -37,7 +37,7 @@ const TOOL_ICON: Record<string, typeof Mic> = {
 };
 
 export default function Jarvis() {
-  const { start, stop, approve, isStreaming } = useJarvisStream();
+  const { start, stop, approve, speak: speakTts, isStreaming } = useJarvisStream();
   const createSession = useSessionCreate();
   const setAllowShellMut = useSetAllowShell();
   const setAllowOsControlMut = useSetAllowOsControl();
@@ -148,10 +148,11 @@ export default function Jarvis() {
     const fresh = sigs.filter((s) => s.severity === "critical" && !announcedRef.current.has(String(s.id)));
     if (!fresh.length) return;
     if (isStreamingRef.current || listeningRef.current) return; // don't interrupt an active turn / the user
+    if (audioPlayingRef.current) return; // Jarvis's SAPI utterance still playing out — don't talk over its tail
     const s = fresh[0];
     announcedRef.current.add(String(s.id));
     const text = s.category ? `${s.category}: ${s.message}` : s.message;
-    speak(`Critical signal. ${text}`);
+    announce(`Critical signal. ${text}`);
   }, [proactive, signalList.data]);
 
   // ── Audio playback queue (neural TTS) ───────────────────────────────────────
@@ -176,6 +177,23 @@ export default function Jarvis() {
     if (v) u.voice = v;
     u.rate = 1.04;
     window.speechSynthesis.speak(u);
+  }
+
+  // Speak `text` in JARVIS's configured voice via the one-shot /api/jarvis/speak
+  // endpoint, played through the SAME neural-TTS audio queue as streamed turns —
+  // so proactive alerts match the turn voice and respect barge-in (the queue is
+  // flushable). Falls back to browser speechSynthesis if the endpoint is missing,
+  // non-Windows, or returns no audio.
+  async function announce(text: string) {
+    if (!text.trim()) return;
+    const a = await speakTts(text, voiceIdRef.current || undefined).catch(() => null);
+    if (a?.base64) {
+      const url = URL.createObjectURL(b64ToBlob(a.base64, a.mime || "audio/wav"));
+      audioQueueRef.current.push(url);
+      playNextAudio();
+      return;
+    }
+    speak(text); // fallback — browser default voice
   }
 
   // ── Stream handlers ─────────────────────────────────────────────────────────
@@ -204,10 +222,12 @@ export default function Jarvis() {
       onToolResult: (name, result) => {
         setTurns((t) => { const c = [...t]; const l = c.find((x) => x.id === turn.id); if (l) { const s = l.tools.find((s) => s.name === name && s.result === undefined); if (s) s.result = result; } return c; });
       },
-      onAudio: (_seq, _mime, base64) => {
+      onAudio: (_seq, mime, base64) => {
         if (activeTurnIdRef.current !== turn.id) return; // barge-in: drop stale TTS from the interrupted turn
         audioPlayedRef.current = true;
-        audioQueueRef.current.push(URL.createObjectURL(b64ToBlob(base64, "audio/mpeg")));
+        // Server sends the actual mime (mp3 for ElevenLabs/OpenAI, wav for the
+        // keyless Windows SAPI floor) — honor it so WAV blobs aren't mislabeled.
+        audioQueueRef.current.push(URL.createObjectURL(b64ToBlob(base64, mime || "audio/mpeg")));
         playNextAudio();
       },
       onScreen: (data) => {
