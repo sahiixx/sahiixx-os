@@ -1,0 +1,17 @@
+node_modules
+dist
+.env
+.dev.vars
+.wrangler
+
+# Temp/experimental scripts
+_drive*.mjs
+_drive*.ts
+_mint.mjs
+_olltest.mjs
+# Build info
+tsconfig.tsbuildinfo
+# Logs
+*.log
+
+_dbfix.ts

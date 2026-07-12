@@ -16,6 +16,10 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 100 }).notNull().unique(),
   avatar: text("avatar"),
   role: varchar("role", { length: 20 }).default("user"),
+  // PBKDF2-SHA256 hash, format: pbkdf2$<iterations>$<saltB64>$<hashB64>. Null for
+  // users created out-of-band (env admin is never a DB row). Nullable so the
+  // column can be added to an existing table without backfill.
+  passwordHash: text("password_hash"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

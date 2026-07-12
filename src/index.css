@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  background: #0A0A0A;
+  color: #E8E8E8;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── Jarvis HUD keyframes ─────────────────────────────────────────────── */
+@keyframes orb-pulse {
+  0%   { transform: scale(0.85); opacity: 0.55; }
+  70%  { transform: scale(1.6);  opacity: 0; }
+  100% { transform: scale(1.6);  opacity: 0; }
+}
+@keyframes orb-breathe {
+  0%, 100% { box-shadow: 0 0 30px 4px rgba(255,26,26,0.25), inset 0 0 20px rgba(255,26,26,0.15); }
+  50%      { box-shadow: 0 0 55px 10px rgba(255,26,26,0.45), inset 0 0 28px rgba(255,26,26,0.3); }
+}
+@keyframes orb-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes hud-wave {
+  0%, 100% { transform: scaleY(0.25); }
+  50%      { transform: scaleY(1); }
+}
+@keyframes hud-scan {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  10%  { opacity: 0.5; }
+  90%  { opacity: 0.5; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+@keyframes hud-grid-drift {
+  to { background-position: 0 40px, 40px 0; }
+}
+
+.jarvis-scanline { animation: hud-scan 7s linear infinite; }
+.jarvis-orb-breathe { animation: orb-breathe 3.4s ease-in-out infinite; }
+.jarvis-ring { animation: orb-pulse 2.2s ease-out infinite; }
+.jarvis-spin { animation: orb-spin 1.1s linear infinite; }
+.jarvis-wave-bar { animation: hud-wave 0.9s ease-in-out infinite; transform-origin: bottom; }
+.jarvis-grid { animation: hud-grid-drift 8s linear infinite; }

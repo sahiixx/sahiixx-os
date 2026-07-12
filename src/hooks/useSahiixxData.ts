@@ -12,7 +12,10 @@ export function useAgentCreate() {
 }
 
 export function useAgentUpdate() {
-  return trpc.sahiixx.agentUpdate.useMutation();
+  const utils = trpc.useUtils();
+  return trpc.sahiixx.agentUpdate.useMutation({
+    onSuccess: () => { utils.sahiixx.agentList.invalidate(); },
+  });
 }
 
 export function useAgentDelete() {
@@ -78,6 +81,67 @@ export function useDeployedList() {
   });
 }
 
+export function useDeployedCreate() {
+  return trpc.sahiixx.deployedCreate.useMutation();
+}
+
+// ── new creates + ops hooks ────────────────────────────────────────────────
+export function useDbStatus() {
+  return trpc.sahiixx.dbStatus.useQuery(undefined, { staleTime: 30_000 });
+}
+
+export function useContactCreate() {
+  return trpc.sahiixx.contactCreate.useMutation();
+}
+
+export function useCampaignCreate() {
+  return trpc.sahiixx.campaignCreate.useMutation();
+}
+
+export function useVideoCreate() {
+  return trpc.sahiixx.videoCreate.useMutation();
+}
+
+export function useOpsMetrics() {
+  return trpc.sahiixx.opsMetrics.useQuery(undefined, { refetchInterval: 5000 });
+}
+export function useOpsPipeline() {
+  return trpc.sahiixx.opsPipeline.useQuery(undefined, { placeholderData: [] });
+}
+export function useOpsModels() {
+  return trpc.sahiixx.opsModels.useQuery(undefined, { placeholderData: [] });
+}
+export function useModuleCounts() {
+  return trpc.sahiixx.moduleCounts.useQuery(undefined, { refetchInterval: 8000 });
+}
+
+// ── Postiz (SARA real social scheduling) ───────────────────────────────────
+export function usePostizStatus() {
+  return trpc.sahiixx.postizStatus.useQuery(undefined, { staleTime: 60_000, placeholderData: { available: false, channels: 0, error: null } });
+}
+export function usePostizIntegrations() {
+  return trpc.sahiixx.postizIntegrations.useQuery(undefined, { staleTime: 60_000, placeholderData: { available: false, integrations: [], error: null } });
+}
+export function usePostizSchedule() {
+  return trpc.sahiixx.postizSchedule.useMutation();
+}
+
 export function usePing() {
   return trpc.ping.hello.useQuery({ text: "SAHIIXX" });
+}
+
+export function useLogin() {
+  return trpc.auth.login.useMutation();
+}
+
+export function useRegister() {
+  return trpc.auth.register.useMutation();
+}
+
+export function useRefresh() {
+  return trpc.auth.refresh.useMutation();
+}
+
+export function useMe(opts?: { enabled?: boolean }) {
+  return trpc.auth.me.useQuery(undefined, opts);
 }
