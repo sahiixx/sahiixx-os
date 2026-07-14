@@ -7,12 +7,14 @@ import superjson from "superjson";
 import { sahiixxRouter } from "./sahiixx-router";
 import { authRouter, } from "./auth-router";
 import { jarvisRouter } from "./jarvis-router";
+import { documentsRouter } from "./documents-router";
 import { registerJarvisRoutes } from "./jarvis/stream";
 import { router, verifyBearer, type AuthContext } from "./context";
 import {
   setDatabaseUrl, setAuthSecret, setAdminCreds,
   setOpenRouterApiKey, setOpenAiApiKey, setAnthropicApiKey, setRetellApiKey,
-  setOllamaUrl, setJarvisProvider, setJarvisModel, setJarvisOllamaModel,
+  setKimiApiKey, setKimiBaseUrl,
+  setOllamaUrl, setOllamaApiKey, setJarvisProvider, setJarvisModel, setJarvisOllamaModel,
   setOpaDispatchUrl, setOpaApiKey,
   setElevenLabsApiKey, setElevenLabsVoiceId, setElevenLabsModel,
   setPostizApiUrl, setPostizApiKey,
@@ -31,6 +33,7 @@ const appRouter = router({
   sahiixx: sahiixxRouter,
   auth: authRouter,
   jarvis: jarvisRouter,
+  documents: documentsRouter,
   ping: pingRouter,
 });
 
@@ -44,10 +47,13 @@ type Bindings = {
   ASSETS?: { fetch: (req: Request) => Response };
   // Jarvis (realtime voice agent) — all optional; zero keys = local Ollama + browser TTS.
   OPENROUTER_API_KEY?: string;
+  KIMI_API_KEY?: string;
+  KIMI_BASE_URL?: string;
   OPENAI_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
   RETELL_API_KEY?: string;
   OLLAMA_URL?: string;
+  OLLAMA_API_KEY?: string;
   JARVIS_PROVIDER?: string;
   JARVIS_MODEL?: string;
   JARVIS_OLLAMA_MODEL?: string;
@@ -73,10 +79,13 @@ app.use("*", async (c, next) => {
   }
   // Jarvis env injection (Cloudflare path only; Vite dev reads .env via process.env).
   if (c.env?.OPENROUTER_API_KEY) setOpenRouterApiKey(c.env.OPENROUTER_API_KEY);
+  if (c.env?.KIMI_API_KEY) setKimiApiKey(c.env.KIMI_API_KEY);
+  if (c.env?.KIMI_BASE_URL) setKimiBaseUrl(c.env.KIMI_BASE_URL);
   if (c.env?.OPENAI_API_KEY) setOpenAiApiKey(c.env.OPENAI_API_KEY);
   if (c.env?.ANTHROPIC_API_KEY) setAnthropicApiKey(c.env.ANTHROPIC_API_KEY);
   if (c.env?.RETELL_API_KEY) setRetellApiKey(c.env.RETELL_API_KEY);
   if (c.env?.OLLAMA_URL) setOllamaUrl(c.env.OLLAMA_URL);
+  if (c.env?.OLLAMA_API_KEY) setOllamaApiKey(c.env.OLLAMA_API_KEY);
   if (c.env?.JARVIS_PROVIDER) setJarvisProvider(c.env.JARVIS_PROVIDER);
   if (c.env?.JARVIS_MODEL) setJarvisModel(c.env.JARVIS_MODEL);
   if (c.env?.JARVIS_OLLAMA_MODEL) setJarvisOllamaModel(c.env.JARVIS_OLLAMA_MODEL);

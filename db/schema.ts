@@ -1,4 +1,14 @@
-import { pgTable, serial, varchar, integer, bigint, text, timestamp, real, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, integer, bigint, text, timestamp, real, pgEnum, jsonb, index, customType } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
+// tsvector column type — Postgres native full-text-search vector. Used by the
+// documents module's generated `fts` column (kept in sync by Postgres, never
+// written by the app) + a GIN index. First FTS surface in the repo.
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 export const agentStatusEnum = pgEnum("agent_status", ["online", "busy", "error", "idle"]);
 export const mcpStatusEnum = pgEnum("mcp_status", ["connected", "warning", "error", "disconnected"]);
@@ -115,5 +125,57 @@ export const deployedAgents = pgTable("deployed_agents", {
   status: deployedStatusEnum("status").default("idle"),
   target: varchar("target", { length: 100 }),
   lastRun: timestamp("last_run"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── documents module (paperless-ngx-inspired, native TS) ───────────────────────
+// Net-new surface (each the first of its kind in this repo, introduced deliberately):
+//   • jsonb column (metadata)   • text[] column (tags)
+//   • generated tsvector column (fts)   • the first index() — a GIN index on fts.
+// `fts` is GENERATED ALWAYS AS from (title || ' ' || ocr_text); the app never
+// writes it. The GIN index makes websearch_to_tsquery/ts_rank_cd usable.
+// No FKs (matches the repo convention); serial ids; snake_case cols.
+export const docTypeEnum = pgEnum("doc_type", ["contract", "offer", "listing", "id", "letter", "report", "other"]);
+export const matchAlgorithmEnum = pgEnum("match_algorithm", ["keyword", "regex", "fuzzy"]);
+export const matchTargetEnum = pgEnum("match_target", ["type", "tag"]);
+
+export const documents = pgTable(
+  "documents",
+  {
+    id: serial("id").primaryKey(),
+    sourceName: varchar("source_name", { length: 255 }).notNull(),
+    sourcePath: varchar("source_path", { length: 500 }), // ref only; original stays on disk (phase 1)
+    docType: docTypeEnum("doc_type").default("other"),
+    title: text("title"),
+    docDate: timestamp("doc_date"),
+    summary: text("summary"),
+    ocrText: text("ocr_text").notNull(),
+    metadata: jsonb("metadata"), // LLM extract: {parties[], amounts[], dates[], propertyRefs[], jurisdiction}
+    tags: text("tags").array().default([]),
+    createdAt: timestamp("created_at").defaultNow(),
+    // Generated FTS vector — Postgres keeps this in sync with title + ocr_text.
+    // to_tsvector(regconfig, text) is IMMUTABLE, so it's legal as a STORED generated column.
+    fts: tsvector("fts").generatedAlwaysAs(
+      sql`to_tsvector('english', coalesce(title, '') || ' ' || coalesce(ocr_text, ''))`,
+    ),
+  },
+  (t) => ({
+    ftsIdx: index("documents_fts_idx").using("gin", t.fts),
+  }),
+);
+
+export const documentTypes = pgTable("document_types", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 80 }).notNull().unique(),
+  description: text("description"),
+  accent: varchar("accent", { length: 16 }), // tailwind hex, mirrors per-module accent tokens
+});
+
+export const matchingRules = pgTable("matching_rules", {
+  id: serial("id").primaryKey(),
+  algorithm: matchAlgorithmEnum("algorithm").notNull(),
+  expression: text("expression").notNull(), // "offer letter" | regex | "fuzzy:deposit~2"
+  target: matchTargetEnum("target").notNull(),
+  targetValue: varchar("target_value", { length: 80 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });

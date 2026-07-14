@@ -24,6 +24,7 @@ export default {
         goldmine: '#0088FF',
         sara: '#00DD77',
         gapclaw: '#00CCFF',
+        documents: '#A78BFA',
       },
       fontFamily: {
         display: ['Orbitron', 'sans-serif'],

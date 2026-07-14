@@ -15,6 +15,7 @@
 
 import {
   agents, mcpServers, deals, contacts, campaigns, videos, signalAlerts, deployedAgents,
+  documents, documentTypes, matchingRules,
 } from "@db/schema";
 
 export type AgentRow = typeof agents.$inferSelect;
@@ -25,6 +26,9 @@ export type CampaignRow = typeof campaigns.$inferSelect;
 export type VideoRow = typeof videos.$inferSelect;
 export type SignalRow = typeof signalAlerts.$inferSelect;
 export type DeployedRow = typeof deployedAgents.$inferSelect;
+export type DocumentRow = typeof documents.$inferSelect;
+export type DocumentTypeRow = typeof documentTypes.$inferSelect;
+export type MatchingRuleRow = typeof matchingRules.$inferSelect;
 
 const now = Date.now();
 const ago = (ms: number) => new Date(now - ms);
@@ -110,6 +114,74 @@ export const demoDeployed: DeployedRow[] = [
   { id: 4, name: "Market Sentiment Crawler", template: "sentiment-crawler", status: "deploying", target: "News + Twitter", lastRun: null, createdAt: ago(600_000) },
 ];
 
+// ── documents (5 — Dubai real-estate contracts/offers, the module's domain) ───
+// `fts` is a generated tsvector column in the live table; in demo mode we never
+// run FTS (search falls back to substring), so it's just a placeholder string.
+export const demoDocuments: DocumentRow[] = [
+  {
+    id: 1, sourceName: "Palm-Jumeirah-Offer-Letter.pdf", sourcePath: "F:\\ALL_MY_FILES\\contracts\\palm_offer.pdf",
+    docType: "offer", title: "Offer to Purchase — Palm Jumeirah Villa", docDate: ago(3600_000 * 48),
+    summary: "Buyer offer for a 5BR Palm Jumeirah villa at AED 28.5M, 10% deposit, 60-day completion.",
+    ocrText: "OFFER TO PURCHASE. Property: Palm Jumeirah, Villa 24, Frond M. Buyer: Ahmed Al Mansoori. Seller: Nakheel. Purchase price: AED 28,500,000. Deposit: 10% (AED 2,850,000) payable to escrow agent within 7 days. Completion: 60 days from signing. This offer is valid for 14 days. Subject to RERA Form B and DLD NOC.",
+    metadata: { parties: ["Ahmed Al Mansoori", "Nakheel"], amounts: ["AED 28,500,000", "AED 2,850,000"], dates: [], propertyRefs: ["Palm Jumeirah Villa 24 Frond M"], jurisdiction: "Dubai" },
+    tags: ["palm", "high-value"], createdAt: ago(3600_000 * 48), fts: "",
+  },
+  {
+    id: 2, sourceName: "Marina-Gate-SPA.pdf", sourcePath: null,
+    docType: "contract", title: "Sale and Purchase Agreement — Marina Gate Tower 2",
+    docDate: ago(3600_000 * 96),
+    summary: "Signed SPA for a 2BR Marina Gate unit at AED 3.2M; service charges and handover terms attached.",
+    ocrText: "SALE AND PURCHASE AGREEMENT. Unit: Marina Gate Tower 2, Apartment 1402. Developer: Emaar. Purchaser: Priya Nair. Price: AED 3,200,000. Service charges: AED 18 per sqft annually. Handover: Q3 2026. Dispute resolution: Dubai Courts. Property ref: DXB-2038.",
+    metadata: { parties: ["Priya Nair", "Emaar"], amounts: ["AED 3,200,000"], dates: [], propertyRefs: ["Marina Gate Tower 2 Apt 1402"], jurisdiction: "Dubai" },
+    tags: ["marina", "apartment"], createdAt: ago(3600_000 * 96), fts: "",
+  },
+  {
+    id: 3, sourceName: "Downtown-Listing-Sheet.pdf", sourcePath: null,
+    docType: "listing", title: "Listing Sheet — Downtown Burj View 2BR",
+    docDate: ago(3600_000 * 12),
+    summary: "Active listing, AED 4.9M, 2BR Downtown Burj view, high floor, vacant.",
+    ocrText: "LISTING SHEET. Property: Downtown Burj View, 2BR, floor 38. Asking: AED 4,900,000. Status: Vacant. View: Burj Khalifa. Agent: SAHIIX. RERA permit: 87219. Listing ref: DXB-2035.",
+    metadata: { parties: ["SAHIIX"], amounts: ["AED 4,900,000"], dates: [], propertyRefs: ["Downtown Burj View 2BR fl38"], jurisdiction: "Dubai" },
+    tags: ["downtown"], createdAt: ago(3600_000 * 12), fts: "",
+  },
+  {
+    id: 4, sourceName: "RERA-Form-B.pdf", sourcePath: null,
+    docType: "letter", title: "RERA Form B — Buyer Acknowledgement",
+    docDate: ago(3600_000 * 6),
+    summary: "RERA Form B buyer acknowledgement for DXB-2035; required before deposit release.",
+    ocrText: "RERA Form B. Buyer acknowledgement. Project: Downtown Burj View. Buyer: Mohammed Razvi. Real estate regulatory agency, Dubai Land Department. Form B required prior to release of deposit funds. Registration number 77192.",
+    metadata: { parties: ["Mohammed Razvi"], amounts: [], dates: [], propertyRefs: ["DXB-2035"], jurisdiction: "Dubai" },
+    tags: ["rera", "compliance"], createdAt: ago(3600_000 * 6), fts: "",
+  },
+  {
+    id: 5, sourceName: "JBR-Title-Deed.jpg", sourcePath: null,
+    docType: "id", title: "Title Deed — Jumeirah Beach Residence",
+    docDate: ago(3600_000 * 240),
+    summary: "Title deed scan for a JBR apartment, owner Fatima Al Zarooni.",
+    ocrText: "TITLE DEED. Property: Jumeirah Beach Residence, Tower 5, Apartment 2201. Owner: Fatima Al Zarooni. Plot: 3551-901. Area: 1420 sqft. DLD title deed number 2024-118842.",
+    metadata: { parties: ["Fatima Al Zarooni"], amounts: [], dates: [], propertyRefs: ["JBR Tower 5 Apt 2201"], jurisdiction: "Dubai" },
+    tags: ["jbr", "deed"], createdAt: ago(3600_000 * 240), fts: "",
+  },
+];
+
+export const demoDocTypes: DocumentTypeRow[] = [
+  { id: 1, name: "Offer", description: "Offer to purchase / letter of intent", accent: "#FF9500" },
+  { id: 2, name: "Contract", description: "Signed sale & purchase agreement", accent: "#FF1A1A" },
+  { id: 3, name: "Listing", description: "Agent listing sheet", accent: "#0088FF" },
+  { id: 4, name: "Compliance", description: "RERA / DLD forms", accent: "#FFAA00" },
+  { id: 5, name: "Deed", description: "Title deed / ownership document", accent: "#00DD77" },
+];
+
+export const demoRules: MatchingRuleRow[] = [
+  { id: 1, algorithm: "keyword", expression: "all offer to purchase", target: "type", targetValue: "offer", createdAt: ago(3600_000 * 200) },
+  { id: 2, algorithm: "keyword", expression: "all sale and purchase agreement", target: "type", targetValue: "contract", createdAt: ago(3600_000 * 200) },
+  { id: 3, algorithm: "keyword", expression: "any listing sheet", target: "type", targetValue: "listing", createdAt: ago(3600_000 * 200) },
+  { id: 4, algorithm: "keyword", expression: "any title deed", target: "type", targetValue: "id", createdAt: ago(3600_000 * 200) },
+  { id: 5, algorithm: "regex", expression: "rera\\s+form\\s+[a-z]", target: "tag", targetValue: "compliance", createdAt: ago(3600_000 * 180) },
+  { id: 6, algorithm: "keyword", expression: "any palm jumeirah", target: "tag", targetValue: "palm", createdAt: ago(3600_000 * 180) },
+  { id: 7, algorithm: "fuzzy", expression: "deposit~2", target: "tag", targetValue: "deposit", createdAt: ago(3600_000 * 180) },
+];
+
 // next id helper for demo-mode appends
 let nextAgentId = demoAgents.length + 1;
 let nextDealId = demoDeals.length + 1;
@@ -119,6 +191,9 @@ let nextVideoId = demoVideos.length + 1;
 let nextSignalId = demoSignals.length + 1;
 let nextDeployedId = demoDeployed.length + 1;
 let nextMcpId = demoMcp.length + 1;
+let nextDocumentId = demoDocuments.length + 1;
+let nextDocTypeId = demoDocTypes.length + 1;
+let nextRuleId = demoRules.length + 1;
 
 export function addDemoAgent(row: Omit<AgentRow, "id" | "createdAt" | "updatedAt">): AgentRow {
   const r: AgentRow = { ...row, id: nextAgentId++, createdAt: new Date(), updatedAt: new Date() };
@@ -153,6 +228,16 @@ export function addDemoSignal(row: Omit<SignalRow, "id" | "timestamp">): SignalR
 export function addDemoDeployed(row: Omit<DeployedRow, "id" | "createdAt" | "lastRun">): DeployedRow {
   const r: DeployedRow = { ...row, id: nextDeployedId++, lastRun: null, createdAt: new Date() };
   demoDeployed.unshift(r);
+  return r;
+}
+export function addDemoDocument(row: Omit<DocumentRow, "id" | "createdAt" | "fts">): DocumentRow {
+  const r: DocumentRow = { ...row, id: nextDocumentId++, createdAt: new Date(), fts: "" };
+  demoDocuments.unshift(r);
+  return r;
+}
+export function addDemoRule(row: Omit<MatchingRuleRow, "id" | "createdAt">): MatchingRuleRow {
+  const r: MatchingRuleRow = { ...row, id: nextRuleId++, createdAt: new Date() };
+  demoRules.unshift(r);
   return r;
 }
 

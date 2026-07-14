@@ -10,6 +10,7 @@ const navItems = [
   { path: "/sara", label: "SARA" },
   { path: "/signals", label: "SIGNALS" },
   { path: "/gapclaw", label: "GAPCLAW" },
+  { path: "/documents", label: "DOCUMENTS" },
   { path: "/jarvis", label: "JARVIS" },
 ];
 

@@ -126,6 +126,53 @@ export function usePostizSchedule() {
   return trpc.sahiixx.postizSchedule.useMutation();
 }
 
+// ── documents (searchable archive — OCR + LLM + Postgres FTS) ────────────────
+export type DocType = "contract" | "offer" | "listing" | "id" | "letter" | "report" | "other";
+
+export function useDocumentList(type?: DocType) {
+  return trpc.documents.list.useQuery(type ? { type } : undefined, {
+    placeholderData: [],
+  });
+}
+export function useDocumentSearch(query: string, type?: DocType) {
+  return trpc.documents.search.useQuery(
+    type ? { query, type } : { query },
+    { enabled: query.trim().length > 0, placeholderData: [] },
+  );
+}
+export function useDocumentGet(id: number | null) {
+  return trpc.documents.get.useQuery({ id: id ?? 0 }, { enabled: id != null });
+}
+export function useDocumentTypes() {
+  return trpc.documents.types.useQuery(undefined, {
+    placeholderData: { types: [], rules: [] },
+  });
+}
+export function useDocumentIngest() {
+  const utils = trpc.useUtils();
+  return trpc.documents.ingest.useMutation({
+    onSuccess: () => {
+      utils.documents.list.invalidate();
+      utils.documents.types.invalidate();
+    },
+  });
+}
+export function useDocumentReextract() {
+  const utils = trpc.useUtils();
+  return trpc.documents.reextract.useMutation({
+    onSuccess: () => {
+      utils.documents.list.invalidate();
+      utils.documents.get.invalidate();
+    },
+  });
+}
+export function useDocumentRuleCreate() {
+  const utils = trpc.useUtils();
+  return trpc.documents.ruleCreate.useMutation({
+    onSuccess: () => { utils.documents.types.invalidate(); },
+  });
+}
+
 export function usePing() {
   return trpc.ping.hello.useQuery({ text: "SAHIIXX" });
 }

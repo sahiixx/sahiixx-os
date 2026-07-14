@@ -9,6 +9,7 @@ import Goldmine from './pages/Goldmine'
 import Sara from './pages/Sara'
 import Signals from './pages/Signals'
 import GapClaw from './pages/GapClaw'
+import Documents from './pages/Documents'
 import Jarvis from './pages/Jarvis'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/sara" element={<Sara />} />
         <Route path="/signals" element={<Signals />} />
         <Route path="/gapclaw" element={<GapClaw />} />
+        <Route path="/documents" element={<Documents />} />
         <Route path="/jarvis" element={<Jarvis />} />
       </Route>
       <Route path="*" element={<NotFound />} />

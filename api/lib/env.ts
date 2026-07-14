@@ -63,6 +63,15 @@ export const env = {
   get ollamaUrl() {
     return g("OLLAMA_URL") ?? process.env.OLLAMA_URL ?? "http://localhost:11434";
   },
+  // Ollama Cloud API key (https://ollama.com/settings/keys). When set, the
+  // Ollama completion path sends it as `Authorization: Bearer <key>` and you
+  // should point OLLAMA_URL at the cloud base `https://ollama.com`. Local
+  // Ollama (localhost:11434) needs NO key and is unaffected. Cloud models use
+  // the base tag without the `-cloud` suffix (e.g. gpt-oss:120b, qwen3.5,
+  // kimi-k2.6, deepseek-v4-flash). Catalog: https://ollama.com/search?c=cloud
+  get ollamaApiKey() {
+    return g("OLLAMA_API_KEY") ?? process.env.OLLAMA_API_KEY;
+  },
   // ── ElevenLabs (neural TTS for Jarvis voice) ──────────────────────────────
   // Optional. When set, synthSpeech in api/jarvis/stream.ts prefers ElevenLabs
   // over OpenAI tts-1 (richer voices, lower latency with the turbo model). With
@@ -131,10 +140,13 @@ export function setAdminCreds(email: string, password: string) {
 // Jarvis env setters — only needed for the Cloudflare deploy path (Vite dev
 // reads these from .env via process.env automatically). Mirror the pattern above.
 export function setOpenRouterApiKey(k: string) { (globalThis as any).OPENROUTER_API_KEY = k; }
+export function setKimiApiKey(k: string) { (globalThis as any).KIMI_API_KEY = k; }
+export function setKimiBaseUrl(u: string) { (globalThis as any).KIMI_BASE_URL = u; }
 export function setOpenAiApiKey(k: string) { (globalThis as any).OPENAI_API_KEY = k; }
 export function setAnthropicApiKey(k: string) { (globalThis as any).ANTHROPIC_API_KEY = k; }
 export function setRetellApiKey(k: string) { (globalThis as any).RETELL_API_KEY = k; }
 export function setOllamaUrl(u: string) { (globalThis as any).OLLAMA_URL = u; }
+export function setOllamaApiKey(k: string) { (globalThis as any).OLLAMA_API_KEY = k; }
 export function setElevenLabsApiKey(k: string) { (globalThis as any).ELEVENLABS_API_KEY = k; }
 export function setElevenLabsVoiceId(v: string) { (globalThis as any).ELEVENLABS_VOICE_ID = v; }
 export function setElevenLabsModel(m: string) { (globalThis as any).ELEVENLABS_MODEL = m; }
