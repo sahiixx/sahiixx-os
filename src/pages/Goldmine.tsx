@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell, Tooltip } from "recharts";
 import { useContactList, useContactSearch, useContactCreate } from "@/hooks/useSahiixxData";
 import { trpc } from "@/providers/trpc";
+import { PageHeader, Chip } from "@/components/ui";
 
 type Tier = "Champions" | "Top" | "Loyal" | "At Risk";
 
@@ -65,10 +66,10 @@ export default function Goldmine() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <h1 className="font-display text-2xl tracking-widest text-goldmine">GOLDMINE CRM</h1>
-        <span className="font-mono text-xs text-text-muted">contact intelligence · RFM tiering</span>
-      </div>
+      <PageHeader eyebrow="CRM · RFM" title="GOLDMINE" accent="text-goldmine">
+        <Chip tone="info">{(contactList.data ?? []).length} CONTACTS</Chip>
+        <Chip tone="neutral">{fmtAed(totalValue)} AED BOOK</Chip>
+      </PageHeader>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {TIERS.map((t) => (

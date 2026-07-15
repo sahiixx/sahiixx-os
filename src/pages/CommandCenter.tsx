@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   useAgentList, useAgentUpdate, useOpsMetrics, useOpsPipeline, useOpsModels, useMcpList, useDbStatus,
 } from "@/hooks/useSahiixxData";
+import { PageHeader, Chip, LiveDot, EmptyState, Panel } from "@/components/ui";
 
 type AgentStatus = "online" | "busy" | "error" | "idle";
 
@@ -35,7 +37,7 @@ export default function CommandCenter() {
   const mcpList = useMcpList();
   const dbStatus = useDbStatus();
   const [terminal, setTerminal] = useState<string[]>([
-    "SAHIIXX OS v4.0.0 — COMMAND TERMINAL",
+    "SAHIIXX OS v4.3.0 — COMMAND TERMINAL",
     "Type /help for available commands",
   ]);
   const [input, setInput] = useState("");
@@ -75,14 +77,15 @@ export default function CommandCenter() {
       next.push(`WS: ${m?.wsConnections ?? 5} connections  MCP: ${mcpOnline}/${mcpTotal || "—"} online  Region: ${m?.region ?? "ae-dubai-1"}`);
       next.push(`DB: ${dbStatus.data?.demo ? "DEMO MODE (seeded)" : "LIVE (Neon)"}  Agents: ${agents.length}  Models: ${(models.data ?? []).length}`);
     } else if (cmd === "/clear") {
-      setTerminal(["SAHIIXX OS v4.0.0 — COMMAND TERMINAL"]);
+      setTerminal(["SAHIIXX OS v4.3.0 — COMMAND TERMINAL", "Type /help for available commands"]);
       setInput("");
       return;
     } else if (cmd === "/settings") {
-      next.push("Theme: Dark (red-grid)  Auto-deploy: Enabled  Log Level: INFO  Notify: Slack + Email");
+      next.push("Theme: Dark (red-grid)  Log Level: INFO");
       next.push(`DB: ${dbStatus.data?.demo ? "DEMO MODE" : "LIVE"}  MCP: ${mcpOnline}/${mcpTotal || "—"}  Region: ${m?.region ?? "ae-dubai-1"}`);
+      next.push("Open /status in the shell for integrations · audit · AI probe");
     } else if (cmd === "/exit") {
-      next.push("Session closed.");
+      next.push("Session closed. Use LOGOUT in the shell to end JWT session.");
     } else {
       next.push(`command not found: ${cmd} — type /help`);
     }
@@ -92,20 +95,39 @@ export default function CommandCenter() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <h1 className="font-display text-2xl tracking-widest text-red-primary">COMMAND TERMINAL</h1>
-        <span className="flex items-center gap-1.5 font-mono text-xs text-text-secondary">
-          <span className="inline-block w-2 h-2 rounded-full bg-success animate-status-pulse" />
-          LIVE
-        </span>
-      </div>
+      <PageHeader eyebrow="OPS · FLEET CONTROL" title="COMMAND CENTER" accent="text-red-primary">
+        <Chip tone={dbStatus.data?.demo ? "warn" : "ok"}>
+          <LiveDot ok={!dbStatus.data?.demo} warn={!!dbStatus.data?.demo} />
+          {dbStatus.data?.demo ? "DEMO DB" : "NEON LIVE"}
+        </Chip>
+        <Chip tone="neutral">
+          {agents.filter((a) => a.status === "busy" || a.status === "online").length}/{agents.length} ACTIVE
+        </Chip>
+        <Link
+          to="/status"
+          className="font-mono text-[10px] tracking-wider text-text-muted hover:text-red-primary border border-surface-hover hover:border-red-primary/40 px-2 py-1 rounded transition-colors"
+        >
+          SYSTEM →
+        </Link>
+      </PageHeader>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* left: agents + system */}
         <div className="xl:col-span-2 space-y-6">
           {/* agents */}
-          <div className="border border-surface-hover bg-surface rounded-lg p-4">
+          <Panel className="p-4">
             <h2 className="font-display text-sm tracking-widest text-text-secondary mb-3">AGENT FLEET</h2>
+            {agents.length === 0 ? (
+              <EmptyState
+                title="No agents yet"
+                body="Spawn an agent from GapClaw, or wait for seed data to load."
+                action={
+                  <Link to="/gapclaw" className="font-mono text-[10px] tracking-wider text-gapclaw border border-gapclaw/40 px-3 py-1.5 rounded hover:bg-gapclaw/10">
+                    OPEN GAPCLAW
+                  </Link>
+                }
+              />
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {agents.map((a) => {
                 const st = (a.status ?? "idle") as AgentStatus;
@@ -147,14 +169,12 @@ export default function CommandCenter() {
                   </motion.div>
                 );
               })}
-              {agents.length === 0 && (
-                <div className="font-mono text-xs text-text-muted md:col-span-2">no agents — deploy one in GAPCLAW</div>
-              )}
             </div>
-          </div>
+            )}
+          </Panel>
 
           {/* CI/CD pipeline */}
-          <div className="border border-surface-hover bg-surface rounded-lg p-4">
+          <Panel className="p-4">
             <h2 className="font-display text-sm tracking-widest text-text-secondary mb-3">CI/CD PIPELINE · v3.0.2</h2>
             <div className="flex flex-wrap gap-2">
               {(pipeline.data ?? []).map((p, i) => (
@@ -170,12 +190,12 @@ export default function CommandCenter() {
                 </div>
               ))}
             </div>
-          </div>
+          </Panel>
         </div>
 
         {/* right: system metrics + models */}
         <div className="space-y-6">
-          <div className="border border-surface-hover bg-surface rounded-lg p-4">
+          <Panel className="p-4">
             <h2 className="font-display text-sm tracking-widest text-text-secondary mb-3">SYSTEM</h2>
             {m && (
               <div className="space-y-2 font-mono text-xs">
@@ -189,12 +209,15 @@ export default function CommandCenter() {
                   <Stat label="WS" value={`${m.wsConnections} conn`} />
                   <Stat label="MCP" value={`${mcpOnline}/${mcpTotal || "—"} online`} />
                   <Stat label="Region" value={m.region} />
+                  {(m as any).activeAgents != null && (
+                    <Stat label="Active agents" value={String((m as any).activeAgents)} />
+                  )}
                 </div>
               </div>
             )}
-          </div>
+          </Panel>
 
-          <div className="border border-surface-hover bg-surface rounded-lg p-4">
+          <Panel className="p-4">
             <h2 className="font-display text-sm tracking-widest text-text-secondary mb-3">MODEL REGISTRY</h2>
             <div className="space-y-2">
               {(models.data ?? []).map((mm) => (
@@ -206,12 +229,12 @@ export default function CommandCenter() {
                 </div>
               ))}
             </div>
-          </div>
+          </Panel>
         </div>
       </div>
 
       {/* terminal */}
-      <div className="mt-6 border border-surface-hover bg-void rounded-lg p-4">
+      <Panel className="mt-6 p-4 bg-void/90">
         <div className="flex items-center gap-2 mb-2">
           <span className="inline-block w-2 h-2 rounded-full bg-error" />
           <span className="inline-block w-2 h-2 rounded-full bg-warning" />
@@ -237,12 +260,12 @@ export default function CommandCenter() {
         </form>
         <div className="flex flex-wrap gap-1.5 mt-2">
           {SLASH_CMDS.slice(0, 7).map((c) => (
-            <button key={c.cmd} onClick={() => runCmd(c.cmd)} className="font-mono text-[10px] text-text-muted hover:text-red-primary border border-surface-hover rounded px-1.5 py-0.5">
+            <button key={c.cmd} type="button" onClick={() => runCmd(c.cmd)} className="font-mono text-[10px] text-text-muted hover:text-red-primary border border-surface-hover rounded px-1.5 py-0.5">
               {c.cmd}
             </button>
           ))}
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

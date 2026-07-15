@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+// ReactNode used for EmptyState action
 
 /** Pulsing live indicator — use for system health chips. */
 export function LiveDot({
@@ -96,5 +97,27 @@ export function Skeleton({ className = "" }: { className?: string }) {
       className={`animate-pulse rounded bg-surface-hover/60 ${className}`}
       aria-hidden
     />
+  );
+}
+
+/** Empty / zero-data state — directional, not apologetic. */
+export function EmptyState({
+  title,
+  body,
+  action,
+}: {
+  title: string;
+  body?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center px-4 py-10 border border-dashed border-surface-hover rounded-lg bg-void/40">
+      <div className="font-mono text-[10px] tracking-[0.35em] text-text-muted mb-2">NO DATA</div>
+      <div className="font-display text-sm tracking-wider text-text-secondary">{title}</div>
+      {body && (
+        <p className="font-mono text-[11px] text-text-muted mt-2 max-w-sm leading-relaxed">{body}</p>
+      )}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
   );
 }

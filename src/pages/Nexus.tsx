@@ -219,7 +219,10 @@ export default function Nexus() {
               </div>
             )}
             {deals.length === 0 && !dealList.error && (
-              <div className="font-mono text-xs text-text-muted">no deals</div>
+              <div className="font-mono text-xs text-text-muted border border-dashed border-surface-hover rounded px-3 py-8 text-center">
+                <div className="tracking-[0.3em] text-[10px] mb-2">NO DEALS</div>
+                <div className="text-text-secondary">Create a deal on the left, or import a live estate lead.</div>
+              </div>
             )}
             <div className="space-y-2">
               {deals.map((d) => {

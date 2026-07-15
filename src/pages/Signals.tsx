@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useSignalList, useSignalCreate } from "@/hooks/useSahiixxData";
 import { trpc } from "@/providers/trpc";
+import { PageHeader, Chip, LiveDot, EmptyState } from "@/components/ui";
 
 type Severity = "critical" | "high" | "medium" | "low";
 
@@ -48,13 +49,18 @@ export default function Signals() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <h1 className="font-display text-2xl tracking-widest text-error">LIVE SIGNAL FEED</h1>
-        <span className="flex items-center gap-1.5 font-mono text-xs text-text-secondary">
-          <span className="inline-block w-2 h-2 rounded-full bg-success animate-status-pulse" />
+      <PageHeader eyebrow="ALERT CHANNEL" title="LIVE SIGNAL FEED" accent="text-error">
+        <Chip tone="ok">
+          <LiveDot ok />
           POLLING 3s
-        </span>
-      </div>
+        </Chip>
+        {counts.critical > 0 && (
+          <Chip tone="err">
+            <LiveDot ok={false} />
+            {counts.critical} CRITICAL
+          </Chip>
+        )}
+      </PageHeader>
 
       {/* severity stat tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -144,7 +150,10 @@ export default function Signals() {
               </div>
             )}
             {signals.length === 0 && !error && (
-              <div className="font-mono text-xs text-text-muted">no signals</div>
+              <EmptyState
+                title="Signal feed quiet"
+                body="Raise an alert with the form — critical items surface first."
+              />
             )}
             <div className="space-y-2">
               <AnimatePresence initial={false}>
