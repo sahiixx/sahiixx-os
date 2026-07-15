@@ -84,11 +84,13 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 // Inject Cloudflare env into globalThis so lib/env + connection.ts can read it
 app.use("*", async (c, next) => {
-  // Prefer Hyperdrive connection string on Cloudflare (pooled TCP to Neon).
+  // Neon HTTP first when DATABASE_URL secret is set (stable on Pages).
+  // Hyperdrive TCP is secondary (used when only HYPERDRIVE is bound).
+  if (c.env?.DATABASE_URL) {
+    setDatabaseUrl(c.env.DATABASE_URL);
+  }
   if (c.env?.HYPERDRIVE?.connectionString) {
     setHyperdriveUrl(c.env.HYPERDRIVE.connectionString);
-  } else if (c.env?.DATABASE_URL) {
-    setDatabaseUrl(c.env.DATABASE_URL);
   }
   if (c.env?.AUTH_SECRET) setAuthSecret(c.env.AUTH_SECRET);
   if (c.env?.ADMIN_EMAIL && c.env?.ADMIN_PASSWORD) {
@@ -141,24 +143,21 @@ registerJarvisRoutes(app);
 
 app.get("/api/env-check", (c) => {
   const hd = c.env?.HYPERDRIVE?.connectionString;
-  const db = hd ?? c.env?.DATABASE_URL ?? process.env.DATABASE_URL;
+  const dbSecret = c.env?.DATABASE_URL ?? process.env.DATABASE_URL;
   const envKeys = c.env ? Object.keys(c.env) : [];
   return c.json({
-    hasDbUrl: !!db,
+    hasDbUrl: !!dbSecret,
     hasHyperdrive: !!hd,
-    dbMode: hd ? "hyperdrive" : db ? "neon-http" : "none",
-    dbUrlPrefix: db ? db.substring(0, 20) + "..." : null,
+    dbMode: dbSecret ? "neon-http" : hd ? "hyperdrive" : "none",
+    dbUrlPrefix: dbSecret ? dbSecret.substring(0, 28) + "..." : null,
+    hyperdrivePrefix: hd ? hd.substring(0, 28) + "..." : null,
     envKeys,
     hasProcessEnv: !!process.env.DATABASE_URL,
   });
 });
 
 app.get("/api/db-test", async (c) => {
-  if (c.env?.HYPERDRIVE?.connectionString) {
-    setHyperdriveUrl(c.env.HYPERDRIVE.connectionString);
-  } else if (c.env?.DATABASE_URL) {
-    setDatabaseUrl(c.env.DATABASE_URL);
-  }
+  // Middleware already injected env; just probe.
   const result = await testConnection();
   return c.json(result);
 });

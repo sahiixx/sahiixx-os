@@ -131,11 +131,9 @@ export function setDatabaseUrl(url: string) {
   (globalThis as any).__DATABASE_URL = url;
 }
 
-/** Hyperdrive TCP connection string (Workers). Prefer over Neon HTTP when set. */
+/** Hyperdrive TCP connection string (Workers). Never clobbers DATABASE_URL. */
 export function setHyperdriveUrl(url: string) {
   (globalThis as any).__HYPERDRIVE_URL = url;
-  // Also expose as DATABASE_URL so existing readers keep working.
-  (globalThis as any).__DATABASE_URL = url;
 }
 
 export function clearHyperdriveUrl() {

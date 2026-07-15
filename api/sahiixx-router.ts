@@ -25,7 +25,9 @@ export const sahiixxRouter = router({
       await db.select().from(agents).limit(1);
       return { demo: false, error: null as string | null };
     } catch (e: any) {
-      return { demo: true, error: (e?.message ?? String(e)).slice(0, 200) };
+      const cause = e?.cause?.message ?? e?.cause ?? "";
+      const msg = [e?.message ?? String(e), cause].filter(Boolean).join(" | ");
+      return { demo: true, error: msg.slice(0, 300) };
     }
   }),
 
