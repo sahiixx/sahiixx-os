@@ -1,0 +1,23 @@
+# User systemd unit for Cloudflare quick tunnel → WSL estate-api :3001
+# Install (WSL):
+#   mkdir -p ~/.config/systemd/user
+#   cp /mnt/c/Users/sahii/sahiixx-os/scripts/estate-tunnel.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now estate-tunnel.service
+# Note: trycloudflare URLs change on restart — run sync-estate-url.sh after start.
+
+[Unit]
+Description=Cloudflare quick tunnel for sahiix-estate (:3001)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/cloudflared tunnel --url http://127.0.0.1:3001 --no-autoupdate
+Restart=always
+RestartSec=5
+StandardOutput=append:%h/estate-tunnel.log
+StandardError=append:%h/estate-tunnel.log
+
+[Install]
+WantedBy=default.target

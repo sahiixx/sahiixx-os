@@ -30,3 +30,6 @@ vite-dev.err
 opa-api-startup.log
 opa-api-startup.log.err
 .pytest_tmp/
+scripts/estate-tunnel.pid
+scripts/estate-tunnel.url
+scripts/estate-tunnel.log

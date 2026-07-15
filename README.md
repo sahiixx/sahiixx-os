@@ -2,7 +2,7 @@
 
 Full-stack cyberpunk operating system — modules, real Neon Postgres, Cloudflare Pages edge API.
 
-**Version:** 4.2.1 · **Prod:** https://sahiixx-os.pages.dev
+**Version:** 4.3.0 · **Prod:** https://sahiixx-os.pages.dev
 
 ### Cloudflare connectors (this deploy)
 | Binding / secret | Purpose |

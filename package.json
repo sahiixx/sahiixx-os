@@ -1,6 +1,6 @@
 {
   "name": "sahiixx-os",
-  "version": "4.2.1",
+  "version": "4.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "db:seed": "tsx db/seed.ts",
     "check": "tsc -b",
     "smoke:prod": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-prod.ps1",
+    "tasks:real": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/real-world-tasks.ps1",
     "tunnel:estate": "wsl -d Ubuntu-24.04 -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/start-estate-tunnel.sh",
     "mcp:knowledge": "tsx mcp/knowledge/src/index.ts"
   },

@@ -2,14 +2,15 @@ import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "./context";
 import { getDb } from "./queries/connection";
 import { agents, mcpServers, deals, contacts, campaigns, videos, signalAlerts, deployedAgents } from "@db/schema";
-import { eq, desc, like } from "drizzle-orm";
+import { eq, desc, like, sql, inArray } from "drizzle-orm";
 import {
   demoAgents, demoMcp, demoDeals, demoContacts, demoCampaigns, demoVideos, demoSignals, demoDeployed,
   addDemoAgent, addDemoDeal, addDemoContact, addDemoCampaign, addDemoVideo, addDemoSignal, addDemoDeployed,
-  liveMetrics, pipelineStages, modelRegistry, moduleCounts,
+  liveMetrics, pipelineStages, modelRegistry, moduleCounts as demoModuleCounts,
   type AgentRow, type McpRow, type DealRow, type ContactRow, type CampaignRow, type VideoRow, type SignalRow, type DeployedRow,
 } from "./queries/demo-data";
 import { probePostiz, listIntegrations, createPost, type PostizIntegration, type PostizPostInput } from "./postiz";
+import { logActivity } from "./lib/activity";
 
 // Demo-fallback pattern: every read tries the real DB first, and on ANY error
 // (Neon unreachable, invalid creds, missing DATABASE_URL) returns the seeded
@@ -44,10 +45,17 @@ export const sahiixxRouter = router({
   agentCreate: protectedProcedure.input(z.object({
     name: z.string(), type: z.string(), model: z.string().optional(),
     task: z.string().optional(), status: z.enum(["online", "busy", "error", "idle"]).optional()
-  })).mutation(async ({ input }): Promise<{ success: true; demo: boolean }> => {
+  })).mutation(async ({ input, ctx }): Promise<{ success: true; demo: boolean }> => {
     try {
       const db = getDb();
       await db.insert(agents).values(input as any);
+      await logActivity({
+        actor: ctx.user.email,
+        action: "agent.create",
+        resource: "agents",
+        detail: input.name,
+        meta: { type: input.type, model: input.model ?? null },
+      });
       return { success: true, demo: false };
     } catch {
       addDemoAgent({
@@ -116,10 +124,17 @@ export const sahiixxRouter = router({
     dealId: z.string(), property: z.string(), type: z.string().optional(),
     area: z.string().optional(), priceAed: z.number(), score: z.number().optional(),
     tier: z.enum(["HARD", "MEDIUM", "LOW", "CLOSED"]).optional(), commission: z.number().optional()
-  })).mutation(async ({ input }): Promise<{ success: true; demo: boolean }> => {
+  })).mutation(async ({ input, ctx }): Promise<{ success: true; demo: boolean }> => {
     try {
       const db = getDb();
       await db.insert(deals).values(input as any);
+      await logActivity({
+        actor: ctx.user.email,
+        action: "deal.create",
+        resource: "deals",
+        detail: input.dealId,
+        meta: { property: input.property, tier: input.tier ?? "LOW", priceAed: input.priceAed },
+      });
       return { success: true, demo: false };
     } catch {
       addDemoDeal({
@@ -127,6 +142,39 @@ export const sahiixxRouter = router({
         area: input.area ?? null, priceAed: input.priceAed, score: input.score ?? 0,
         tier: input.tier ?? "LOW", commission: input.commission ?? null, status: "active",
       });
+      return { success: true, demo: true };
+    }
+  }),
+
+  dealUpdate: protectedProcedure.input(z.object({
+    id: z.number(),
+    tier: z.enum(["HARD", "MEDIUM", "LOW", "CLOSED"]).optional(),
+    status: z.enum(["active", "pending", "closed", "lost"]).optional(),
+    score: z.number().optional(),
+    commission: z.number().optional(),
+    property: z.string().optional(),
+  })).mutation(async ({ input, ctx }): Promise<{ success: true; demo: boolean }> => {
+    try {
+      const db = getDb();
+      const { id, ...data } = input;
+      await db.update(deals).set(data as any).where(eq(deals.id, id));
+      await logActivity({
+        actor: ctx.user.email,
+        action: "deal.update",
+        resource: "deals",
+        detail: String(id),
+        meta: data as Record<string, unknown>,
+      });
+      return { success: true, demo: false };
+    } catch {
+      const d = demoDeals.find((x) => x.id === input.id);
+      if (d) {
+        if (input.tier) d.tier = input.tier;
+        if (input.status) d.status = input.status;
+        if (input.score != null) d.score = input.score;
+        if (input.commission != null) d.commission = input.commission;
+        if (input.property) d.property = input.property;
+      }
       return { success: true, demo: true };
     }
   }),
@@ -155,10 +203,16 @@ export const sahiixxRouter = router({
     name: z.string(), phone: z.string().optional(), email: z.string().optional(),
     units: z.number().optional(), totalValue: z.number().optional(), rfmScore: z.number().optional(),
     tier: z.enum(["Champions", "Top", "Loyal", "At Risk"]).optional(), area: z.string().optional(),
-  })).mutation(async ({ input }): Promise<{ success: true; demo: boolean }> => {
+  })).mutation(async ({ input, ctx }): Promise<{ success: true; demo: boolean }> => {
     try {
       const db = getDb();
       await db.insert(contacts).values(input as any);
+      await logActivity({
+        actor: ctx.user.email,
+        action: "contact.create",
+        resource: "contacts",
+        detail: input.name,
+      });
       return { success: true, demo: false };
     } catch {
       addDemoContact({
@@ -234,10 +288,17 @@ export const sahiixxRouter = router({
 
   signalCreate: protectedProcedure.input(z.object({
     category: z.string(), severity: z.enum(["critical", "high", "medium", "low"]), message: z.string(), source: z.string().optional()
-  })).mutation(async ({ input }): Promise<{ success: true; demo: boolean }> => {
+  })).mutation(async ({ input, ctx }): Promise<{ success: true; demo: boolean }> => {
     try {
       const db = getDb();
       await db.insert(signalAlerts).values(input as any);
+      await logActivity({
+        actor: ctx.user.email,
+        action: "signal.create",
+        resource: "signal_alerts",
+        detail: input.message.slice(0, 120),
+        meta: { severity: input.severity, category: input.category },
+      });
       return { success: true, demo: false };
     } catch {
       addDemoSignal({
@@ -270,9 +331,24 @@ export const sahiixxRouter = router({
     }
   }),
 
-  // ── Command Center live ops data (demo-only; no DB backing needed) ────────────
+  // ── Command Center live ops data ───────────────────────────────────────────
   opsMetrics: publicProcedure.query(async () => {
-    return liveMetrics();
+    // Base synthetic host metrics + real agent busy count when DB is live
+    const base = liveMetrics();
+    try {
+      const db = getDb();
+      const busy = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(agents)
+        .where(inArray(agents.status, ["busy", "online"]));
+      return {
+        ...base,
+        activeAgents: Number(busy[0]?.n ?? 0),
+        source: "live+db" as const,
+      };
+    } catch {
+      return { ...base, source: "synthetic" as const };
+    }
   }),
   opsPipeline: publicProcedure.query(async () => {
     return pipelineStages;
@@ -280,8 +356,49 @@ export const sahiixxRouter = router({
   opsModels: publicProcedure.query(async () => {
     return modelRegistry;
   }),
+  /** Hub launcher counts — prefer Neon, fall back to in-memory demo seed. */
   moduleCounts: publicProcedure.query(async () => {
-    return moduleCounts();
+    try {
+      const db = getDb();
+      const [a, d, c, camp, v, s, dep, m] = await Promise.all([
+        db.select({ n: sql<number>`count(*)::int` }).from(agents),
+        db.select({ n: sql<number>`count(*)::int` }).from(deals),
+        db.select({ n: sql<number>`count(*)::int` }).from(contacts),
+        db.select({ n: sql<number>`count(*)::int` }).from(campaigns),
+        db.select({ n: sql<number>`count(*)::int` }).from(videos),
+        db.select({ n: sql<number>`count(*)::int` }).from(signalAlerts),
+        db.select({ n: sql<number>`count(*)::int` }).from(deployedAgents),
+        db.select({ n: sql<number>`count(*)::int` }).from(mcpServers),
+      ]);
+      const activeAgents = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(agents)
+        .where(inArray(agents.status, ["busy", "online"]));
+      const criticalSignals = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(signalAlerts)
+        .where(eq(signalAlerts.severity, "critical"));
+      const mcpOnline = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(mcpServers)
+        .where(eq(mcpServers.status, "connected"));
+      return {
+        agents: Number(a[0]?.n ?? 0),
+        activeAgents: Number(activeAgents[0]?.n ?? 0),
+        deals: Number(d[0]?.n ?? 0),
+        contacts: Number(c[0]?.n ?? 0),
+        campaigns: Number(camp[0]?.n ?? 0),
+        videos: Number(v[0]?.n ?? 0),
+        signals: Number(s[0]?.n ?? 0),
+        criticalSignals: Number(criticalSignals[0]?.n ?? 0),
+        deployed: Number(dep[0]?.n ?? 0),
+        mcp: Number(mcpOnline[0]?.n ?? 0),
+        mcpTotal: Number(m[0]?.n ?? 0),
+        source: "db" as const,
+      };
+    } catch {
+      return { ...demoModuleCounts(), source: "demo" as const };
+    }
   }),
 
   // ── Postiz (SARA content factory — real social scheduling) ──────────────────
