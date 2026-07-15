@@ -225,13 +225,26 @@ registerJarvisRoutes(app);
 app.get("/api/env-check", (c) => {
   const hd = c.env?.HYPERDRIVE?.connectionString;
   const dbSecret = c.env?.DATABASE_URL ?? process.env.DATABASE_URL;
-  const envKeys = c.env ? Object.keys(c.env) : [];
+  const envKeys = c.env ? Object.keys(c.env).sort() : [];
+  const flag = (k: string) => !!(c.env as any)?.[k];
   return c.json({
     hasDbUrl: !!dbSecret,
     hasHyperdrive: !!hd,
+    hasWorkersAi: !!c.env?.AI,
     dbMode: dbSecret ? "neon-http" : hd ? "hyperdrive" : "none",
     dbUrlPrefix: dbSecret ? dbSecret.substring(0, 28) + "..." : null,
     hyperdrivePrefix: hd ? hd.substring(0, 28) + "..." : null,
+    secretsPresent: {
+      DATABASE_URL: flag("DATABASE_URL"),
+      AUTH_SECRET: flag("AUTH_SECRET"),
+      OLLAMA_URL: flag("OLLAMA_URL"),
+      OLLAMA_API_KEY: flag("OLLAMA_API_KEY"),
+      JARVIS_PROVIDER: flag("JARVIS_PROVIDER"),
+      JARVIS_OLLAMA_MODEL: flag("JARVIS_OLLAMA_MODEL"),
+      OPENROUTER_API_KEY: flag("OPENROUTER_API_KEY"),
+      ELEVENLABS_API_KEY: flag("ELEVENLABS_API_KEY"),
+      ESTATE_API_URL: flag("ESTATE_API_URL"),
+    },
     envKeys,
     hasProcessEnv: !!process.env.DATABASE_URL,
     version: APP_VERSION,

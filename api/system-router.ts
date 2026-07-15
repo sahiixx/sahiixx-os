@@ -155,7 +155,9 @@ export const systemRouter = router({
     }
     try {
       const start = Date.now();
-      const out = await ai.run("@cf/meta/llama-3.1-8b-instruct", {
+      // Cloudflare 2026 catalog: llama-3.1-8b-instruct family deprecated May 2026.
+      // Prefer glm-4.7-flash (recommended replacement for fast edge probes).
+      const out = await ai.run("@cf/zai-org/glm-4.7-flash", {
         messages: [{ role: "user", content: "Reply with exactly: OK" }],
         max_tokens: 8,
       });
