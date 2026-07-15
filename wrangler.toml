@@ -3,4 +3,15 @@ compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist/public"
 
+# Neon via Hyperdrive (edge connection pooler). Created 2026-07-16:
+#   npx wrangler hyperdrive create sahiixx-os-neon --connection-string=...
+# Local: wrangler sets CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
+# from localConnectionString, or fall back to DATABASE_URL in .dev.vars.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "acf8f4513b884fff914cfd63e422c4b8"
+# Uncomment / set for `wrangler pages dev` against real Neon:
+# localConnectionString = "postgres://USER:PASS@HOST/neondb?sslmode=require"
+
 [vars]
+# Non-secret defaults only. Secrets via .dev.vars / Pages dashboard / wrangler secret.

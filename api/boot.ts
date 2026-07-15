@@ -11,7 +11,7 @@ import { documentsRouter } from "./documents-router";
 import { registerJarvisRoutes } from "./jarvis/stream";
 import { router, verifyBearer, type AuthContext } from "./context";
 import {
-  setDatabaseUrl, setAuthSecret, setAdminCreds,
+  setDatabaseUrl, setHyperdriveUrl, setAuthSecret, setAdminCreds,
   setOpenRouterApiKey, setOpenAiApiKey, setAnthropicApiKey, setRetellApiKey,
   setKimiApiKey, setKimiBaseUrl,
   setOllamaUrl, setOllamaApiKey, setJarvisProvider, setJarvisModel, setJarvisOllamaModel,
@@ -39,8 +39,20 @@ const appRouter = router({
 
 export type AppRouter = typeof appRouter;
 
+/** Cloudflare Hyperdrive binding shape (subset we use). */
+type HyperdriveBinding = {
+  connectionString: string;
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  database: string;
+};
+
 type Bindings = {
   DATABASE_URL?: string;
+  /** Prefer Hyperdrive for edge Postgres (Neon via TCP pooler). */
+  HYPERDRIVE?: HyperdriveBinding;
   AUTH_SECRET?: string;
   ADMIN_EMAIL?: string;
   ADMIN_PASSWORD?: string;
@@ -72,7 +84,12 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 // Inject Cloudflare env into globalThis so lib/env + connection.ts can read it
 app.use("*", async (c, next) => {
-  if (c.env?.DATABASE_URL) setDatabaseUrl(c.env.DATABASE_URL);
+  // Prefer Hyperdrive connection string on Cloudflare (pooled TCP to Neon).
+  if (c.env?.HYPERDRIVE?.connectionString) {
+    setHyperdriveUrl(c.env.HYPERDRIVE.connectionString);
+  } else if (c.env?.DATABASE_URL) {
+    setDatabaseUrl(c.env.DATABASE_URL);
+  }
   if (c.env?.AUTH_SECRET) setAuthSecret(c.env.AUTH_SECRET);
   if (c.env?.ADMIN_EMAIL && c.env?.ADMIN_PASSWORD) {
     setAdminCreds(c.env.ADMIN_EMAIL, c.env.ADMIN_PASSWORD);
@@ -123,10 +140,13 @@ app.all("/api/trpc/*", (c) =>
 registerJarvisRoutes(app);
 
 app.get("/api/env-check", (c) => {
-  const db = c.env?.DATABASE_URL ?? process.env.DATABASE_URL;
+  const hd = c.env?.HYPERDRIVE?.connectionString;
+  const db = hd ?? c.env?.DATABASE_URL ?? process.env.DATABASE_URL;
   const envKeys = c.env ? Object.keys(c.env) : [];
   return c.json({
     hasDbUrl: !!db,
+    hasHyperdrive: !!hd,
+    dbMode: hd ? "hyperdrive" : db ? "neon-http" : "none",
     dbUrlPrefix: db ? db.substring(0, 20) + "..." : null,
     envKeys,
     hasProcessEnv: !!process.env.DATABASE_URL,
@@ -134,7 +154,11 @@ app.get("/api/env-check", (c) => {
 });
 
 app.get("/api/db-test", async (c) => {
-  if (c.env?.DATABASE_URL) setDatabaseUrl(c.env.DATABASE_URL);
+  if (c.env?.HYPERDRIVE?.connectionString) {
+    setHyperdriveUrl(c.env.HYPERDRIVE.connectionString);
+  } else if (c.env?.DATABASE_URL) {
+    setDatabaseUrl(c.env.DATABASE_URL);
+  }
   const result = await testConnection();
   return c.json(result);
 });

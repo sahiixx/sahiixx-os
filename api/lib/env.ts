@@ -130,6 +130,17 @@ export const env = {
 export function setDatabaseUrl(url: string) {
   (globalThis as any).__DATABASE_URL = url;
 }
+
+/** Hyperdrive TCP connection string (Workers). Prefer over Neon HTTP when set. */
+export function setHyperdriveUrl(url: string) {
+  (globalThis as any).__HYPERDRIVE_URL = url;
+  // Also expose as DATABASE_URL so existing readers keep working.
+  (globalThis as any).__DATABASE_URL = url;
+}
+
+export function clearHyperdriveUrl() {
+  delete (globalThis as any).__HYPERDRIVE_URL;
+}
 export function setAuthSecret(s: string) {
   (globalThis as any).AUTH_SECRET = s;
 }
