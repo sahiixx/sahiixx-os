@@ -12,6 +12,7 @@ const navItems = [
   { path: "/gapclaw", label: "GAPCLAW" },
   { path: "/documents", label: "DOCUMENTS" },
   { path: "/jarvis", label: "JARVIS" },
+  { path: "/status", label: "STATUS" },
 ];
 
 export default function Layout() {

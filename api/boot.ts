@@ -8,6 +8,7 @@ import { sahiixxRouter } from "./sahiixx-router";
 import { authRouter, } from "./auth-router";
 import { jarvisRouter } from "./jarvis-router";
 import { documentsRouter } from "./documents-router";
+import { systemRouter, APP_VERSION, APP_NAME } from "./system-router";
 import { registerJarvisRoutes } from "./jarvis/stream";
 import { router, verifyBearer, type AuthContext } from "./context";
 import {
@@ -19,7 +20,9 @@ import {
   setElevenLabsApiKey, setElevenLabsVoiceId, setElevenLabsModel,
   setPostizApiUrl, setPostizApiKey,
 } from "./lib/env";
-import { testConnection } from "./queries/connection";
+import { testConnection, getDb, activeDatabaseMode } from "./queries/connection";
+import { agents } from "@db/schema";
+import { inc, prometheusText } from "./lib/metrics";
 
 const t = initTRPC.create({ transformer: superjson });
 
@@ -34,6 +37,7 @@ const appRouter = router({
   auth: authRouter,
   jarvis: jarvisRouter,
   documents: documentsRouter,
+  system: systemRouter,
   ping: pingRouter,
 });
 
@@ -115,17 +119,75 @@ app.use("*", async (c, next) => {
   if (c.env?.ELEVENLABS_MODEL) setElevenLabsModel(c.env.ELEVENLABS_MODEL);
   if (c.env?.POSTIZ_API_URL) setPostizApiUrl(c.env.POSTIZ_API_URL);
   if (c.env?.POSTIZ_API_KEY) setPostizApiKey(c.env.POSTIZ_API_KEY);
+  inc("requests_total");
   await next();
 });
 
-app.use("/*", cors({ origin: "*", allowMethods: ["GET", "POST", "OPTIONS"] }));
+// Security headers (API + SPA responses)
+app.use("*", async (c, next) => {
+  await next();
+  c.res.headers.set("X-Content-Type-Options", "nosniff");
+  c.res.headers.set("X-Frame-Options", "DENY");
+  c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  c.res.headers.set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
+  c.res.headers.set("X-SAHIIXX-Version", APP_VERSION);
+});
 
-app.get("/api/health", (c) =>
-  c.json({ status: "ok", timestamp: new Date().toISOString() })
+app.use(
+  "/*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    exposeHeaders: ["X-SAHIIXX-Version"],
+  }),
 );
 
-app.all("/api/trpc/*", (c) =>
-  fetchRequestHandler({
+app.get("/api/health", (c) =>
+  c.json({
+    status: "ok",
+    name: APP_NAME,
+    version: APP_VERSION,
+    timestamp: new Date().toISOString(),
+  }),
+);
+
+/** K8s-style readiness: 200 only when DB answers. */
+app.get("/api/ready", async (c) => {
+  try {
+    const db = getDb();
+    await db.select().from(agents).limit(1);
+    return c.json({
+      status: "ready",
+      version: APP_VERSION,
+      dbMode: activeDatabaseMode(),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    return c.json(
+      {
+        status: "not_ready",
+        version: APP_VERSION,
+        error: (e?.message ?? String(e)).slice(0, 200),
+        timestamp: new Date().toISOString(),
+      },
+      503,
+    );
+  }
+});
+
+app.get("/api/version", (c) =>
+  c.json({ name: APP_NAME, version: APP_VERSION, timestamp: new Date().toISOString() }),
+);
+
+app.get("/api/metrics", (c) => {
+  const body = prometheusText({ db_mode: activeDatabaseMode() === "neon-http" ? 1 : 2 });
+  return c.body(body, 200, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });
+});
+
+app.all("/api/trpc/*", (c) => {
+  inc("trpc_total");
+  return fetchRequestHandler({
     endpoint: "/api/trpc",
     router: appRouter,
     req: c.req.raw,
@@ -134,8 +196,8 @@ app.all("/api/trpc/*", (c) =>
       const user = await verifyBearer(authHeader);
       return { user };
     },
-  })
-);
+  });
+});
 
 // Jarvis realtime voice-agent routes (SSE turn + approve). Local-dev only —
 // the tools they call are box-local (OPA :8082, WSL shell). See api/jarvis/*.
@@ -153,6 +215,7 @@ app.get("/api/env-check", (c) => {
     hyperdrivePrefix: hd ? hd.substring(0, 28) + "..." : null,
     envKeys,
     hasProcessEnv: !!process.env.DATABASE_URL,
+    version: APP_VERSION,
   });
 });
 

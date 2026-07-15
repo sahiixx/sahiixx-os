@@ -1,28 +1,79 @@
 # SAHIIXX OS
 
-Full stack cyberpunk operating system with 8 modules, real-time data, and Neon Postgres backend.
+Full-stack cyberpunk operating system — modules, real Neon Postgres, Cloudflare Pages edge API.
+
+**Version:** 4.1.0 · **Prod:** https://sahiixx-os.pages.dev
 
 ## Stack
-- Frontend: React 19 + TypeScript + Tailwind CSS + Vite
-- Backend: Hono + tRPC 11 + Drizzle ORM
-- Database: Neon Postgres
-- Auth: OAuth 2.0
-- Deploy: Cloudflare Pages + Workers
+- **Frontend:** React 19 + TypeScript + Tailwind + Vite 7
+- **Backend:** Hono + tRPC 11 + Drizzle ORM (on Pages `_worker.js`)
+- **Database:** Neon Postgres (HTTP) + optional Cloudflare Hyperdrive
+- **Auth:** JWT (HS256 / jose) — env-admin bootstrap + DB users
+- **Deploy:** Cloudflare Pages + Hyperdrive binding
 
 ## Routes
-- `/` Boot Sequence
-- `/hub` Module Launcher
-- `/command-center` 6-tab Dashboard
-- `/nexus` NEXUS Deal Engine
-- `/goldmine` Goldmine Protocol CRM
-- `/sara` SARA Content Factory
-- `/signals` Live Signal Feed
-- `/gapclaw` GapClaw Agent Builder
+| Path | Module |
+|------|--------|
+| `/` | Boot sequence |
+| `/login` | Auth |
+| `/hub` | Module launcher |
+| `/command-center` | Ops dashboard |
+| `/nexus` | Deal engine |
+| `/goldmine` | CRM |
+| `/sara` | Content factory |
+| `/signals` | Alert feed |
+| `/gapclaw` | Agent builder |
+| `/documents` | OCR + FTS archive |
+| `/jarvis` | Voice agent |
+| `/status` | **System status / audit / metrics** |
+
+## Ops endpoints
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/health` | Liveness |
+| `GET /api/ready` | Readiness (DB required → 503 if down) |
+| `GET /api/version` | App version |
+| `GET /api/metrics` | Prometheus text counters |
+| `GET /api/env-check` | Binding diagnostics (no secret values) |
+| `GET /api/db-test` | Neon + Hyperdrive probe |
+| `/api/trpc/*` | App API (superjson) |
+
+## tRPC routers
+`sahiixx` · `auth` · `jarvis` · `documents` · `system` · `ping`
+
+### Auth highlights
+- Login rate limit (10 / 15 min per email)
+- `auth.bootstrapAdmin` — promote env admin into `users` table
+- `auth.changePassword` · `auth.listUsers` (admin)
+- Activity audit on login / register / password change
+
+### System highlights
+- Integration matrix (DB, LLMs, OPA, Postiz, ElevenLabs)
+- Activity event log (`activity_events` + memory fallback)
+- Heartbeat mutation for ops checks
 
 ## Database
-9 tables: users, agents, mcp_servers, deals, contacts, campaigns, videos, signal_alerts, deployed_agents
+Tables: users, agents, mcp_servers, deals, contacts, campaigns, videos, signal_alerts, deployed_agents, documents, document_types, matching_rules, **activity_events**
+
+```bash
+npm run db:push      # push schema to Neon
+npm run db:seed      # seed demo rows
+```
+
+## Local dev
+```bash
+# secrets in .dev.vars (never commit)
+npm install
+npm run dev          # Vite :3000 + API middleware
+```
 
 ## Deploy
-Frontend: Connect GitHub repo to Cloudflare Pages
-Backend: Deploy `api/` folder to Cloudflare Workers
-Database: Schema auto-pushed via `drizzle-kit push`
+```bash
+npm run build
+npx wrangler pages deploy dist/public --project-name=sahiixx-os
+# Secrets: DATABASE_URL AUTH_SECRET ADMIN_EMAIL ADMIN_PASSWORD (+ optional LLM keys)
+```
+
+## Default login (change after bootstrap)
+- Email: `admin@sahiixx.os`
+- Password: from `ADMIN_PASSWORD` / `.dev.vars`

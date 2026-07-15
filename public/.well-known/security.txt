@@ -1,0 +1,3 @@
+﻿Contact: mailto:admin@sahiixx.os
+Preferred-Languages: en
+Canonical: https://sahiixx-os.pages.dev/.well-known/security.txt

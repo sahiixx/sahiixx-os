@@ -19,6 +19,9 @@ const modules = [
   { path: "/sara", name: "SARA", desc: "Content factory", color: "sara", countKey: "campaigns", countLabel: "campaigns" },
   { path: "/signals", name: "SIGNALS", desc: "Live alert feed", color: "error", countKey: "signals", countLabel: "signals" },
   { path: "/gapclaw", name: "GAPCLAW", desc: "Agent builder", color: "gapclaw", countKey: "deployed", countLabel: "deployed" },
+  { path: "/documents", name: "DOCUMENTS", desc: "OCR archive + FTS search", color: "red-primary", countKey: "documents", countLabel: "docs" },
+  { path: "/jarvis", name: "JARVIS", desc: "Voice agent + OS control", color: "gapclaw", countKey: "agents", countLabel: "agents" },
+  { path: "/status", name: "SYSTEM STATUS", desc: "Readiness, integrations, audit", color: "error", countKey: "mcp", countLabel: "mcp online" },
 ];
 
 export default function Hub() {

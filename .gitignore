@@ -24,3 +24,9 @@ _show_tts_*.wav
 tsconfig.tsbuildinfo
 # Logs
 *.log
+*.err
+vite-dev.log
+vite-dev.err
+opa-api-startup.log
+opa-api-startup.log.err
+.pytest_tmp/

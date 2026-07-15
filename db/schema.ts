@@ -179,3 +179,24 @@ export const matchingRules = pgTable("matching_rules", {
   targetValue: varchar("target_value", { length: 80 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ── audit / activity (ops + security) ─────────────────────────────────────────
+// Append-only event stream for logins, mutations, system probes. UI Status page
+// and /api/metrics both read this. No FKs — actor is free-form email/string.
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: serial("id").primaryKey(),
+    actor: varchar("actor", { length: 120 }),
+    action: varchar("action", { length: 80 }).notNull(),
+    resource: varchar("resource", { length: 80 }),
+    detail: text("detail"),
+    ip: varchar("ip", { length: 64 }),
+    meta: jsonb("meta"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (t) => ({
+    actionIdx: index("activity_events_action_idx").on(t.action),
+    createdIdx: index("activity_events_created_idx").on(t.createdAt),
+  }),
+);
