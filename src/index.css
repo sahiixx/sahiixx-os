@@ -6,7 +6,40 @@ body {
   margin: 0;
   background: #0A0A0A;
   color: #E8E8E8;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* OS ambient grid */
+.os-grid {
+  background-image:
+    linear-gradient(rgba(255, 26, 26, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 26, 26, 0.12) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Hide scrollbars on nav chips row */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Focus visible for keyboard users */
+:focus-visible {
+  outline: 1px solid rgba(255, 26, 26, 0.7);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Selection */
+::selection {
+  background: rgba(255, 26, 26, 0.35);
+  color: #fff;
 }
 
 /* ── Jarvis HUD keyframes ─────────────────────────────────────────────── */

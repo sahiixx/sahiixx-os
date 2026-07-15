@@ -88,7 +88,8 @@ export default function Status() {
     <div className="space-y-8 max-w-6xl">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="font-display text-2xl tracking-widest text-red-primary">SYSTEM STATUS</h1>
+          <div className="font-mono text-[10px] tracking-[0.35em] text-text-muted mb-1.5">OPS · TELEMETRY</div>
+          <h1 className="font-display text-xl sm:text-2xl tracking-widest text-red-primary">SYSTEM STATUS</h1>
           <p className="font-mono text-xs text-text-muted mt-1">
             readiness · integrations · audit · metrics
           </p>

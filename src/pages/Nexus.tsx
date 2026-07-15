@@ -78,17 +78,21 @@ export default function Nexus() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
-        <h1 className="font-display text-2xl tracking-widest text-nexus">NEXUS DEAL ENGINE</h1>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.35em] text-text-muted mb-1.5">DEAL PIPELINE</div>
+          <h1 className="font-display text-xl sm:text-2xl tracking-widest text-nexus">NEXUS DEAL ENGINE</h1>
+        </div>
         <div className="flex items-center gap-2">
           <span
-            className={`font-mono text-[10px] tracking-wider px-2 py-1 rounded border ${
+            className={`inline-flex items-center gap-1.5 font-mono text-[10px] tracking-wider px-2.5 py-1 rounded border ${
               liveOk
-                ? "border-emerald-500/40 text-emerald-400"
-                : "border-surface-hover text-text-muted"
+                ? "border-success/40 text-success bg-success/5"
+                : "border-surface-hover text-text-muted bg-void"
             }`}
           >
-            LIVE ESTATE {liveOk ? "ONLINE" : estateCfg.data?.configured ? "DOWN" : "UNCONFIGURED"}
+            <span className={`w-1.5 h-1.5 rounded-full ${liveOk ? "bg-success animate-pulse" : "bg-text-muted"}`} />
+            ESTATE {liveOk ? "ONLINE" : estateCfg.data?.configured ? "DOWN" : "UNCONFIGURED"}
             {estateHealth.data?.latencyMs != null && liveOk ? ` · ${estateHealth.data.latencyMs}ms` : ""}
           </span>
         </div>
