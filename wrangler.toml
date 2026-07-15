@@ -1,5 +1,5 @@
 name = "sahiixx-os"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-07-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist/public"
 
@@ -13,5 +13,12 @@ id = "acf8f4513b884fff914cfd63e422c4b8"
 # Uncomment / set for `wrangler pages dev` against real Neon:
 # localConnectionString = "postgres://USER:PASS@HOST/neondb?sslmode=require"
 
+# Workers AI — edge inference fallback (no key; billed per account)
+# Pages supports AI bindings; observability block is Workers-only (omit here).
+[ai]
+binding = "AI"
+
 [vars]
-# Non-secret defaults only. Secrets via .dev.vars / Pages dashboard / wrangler secret.
+# Non-secret defaults only. Do NOT duplicate secret names (Pages rejects collisions).
+# Jarvis/Ollama keys live as Pages secrets: OLLAMA_URL, OLLAMA_API_KEY, JARVIS_*, etc.
+APP_ENV = "production"

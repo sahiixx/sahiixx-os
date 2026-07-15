@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run check
+      - name: Build
+        run: npm run build
+
+  e2e-prod:
+    runs-on: ubuntu-latest
+    # Smoke the live Pages deploy (no secrets needed for public health/ready)
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Health
+        run: |
+          set -e
+          curl -fsS --max-time 20 https://sahiixx-os.pages.dev/api/health | tee /tmp/health.json
+          grep -q '"status":"ok"' /tmp/health.json
+      - name: Ready
+        run: |
+          set -e
+          code=$(curl -sS -o /tmp/ready.json -w "%{http_code}" --max-time 25 https://sahiixx-os.pages.dev/api/ready)
+          cat /tmp/ready.json
+          test "$code" = "200"
+          grep -q '"status":"ready"' /tmp/ready.json
+      - name: Version
+        run: |
+          curl -fsS --max-time 15 https://sahiixx-os.pages.dev/api/version | tee /tmp/ver.json
+          grep -q sahiixx-os /tmp/ver.json
+      - name: Login JWT
+        env:
+          E2E_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: |
+          set -e
+          EMAIL="${E2E_EMAIL:-admin@sahiixx.os}"
+          PASS="${E2E_PASSWORD:-sahiixx}"
+          body=$(printf '{"json":{"email":"%s","password":"%s","client":"github-ci"}}' "$EMAIL" "$PASS")
+          curl -fsS --max-time 30 -X POST \
+            -H 'content-type: application/json' \
+            -d "$body" \
+            https://sahiixx-os.pages.dev/api/trpc/auth.login | tee /tmp/login.json
+          grep -q '"success":true' /tmp/login.json
+          grep -q '"token"' /tmp/login.json
+      - name: dbStatus live
+        run: |
+          set -e
+          curl -fsS --max-time 20 \
+            'https://sahiixx-os.pages.dev/api/trpc/sahiixx.dbStatus' | tee /tmp/db.json
+          grep -q '"demo":false' /tmp/db.json

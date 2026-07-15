@@ -9,22 +9,29 @@ import { getDb, activeDatabaseMode, testConnection } from "./queries/connection"
 import { agents } from "@db/schema";
 import { listActivity, logActivity } from "./lib/activity";
 import { getCounters, getUptimeSec } from "./lib/metrics";
+import { estateHealth, estateConfigured } from "./lib/estate";
 import { sql } from "drizzle-orm";
 
-export const APP_VERSION = "4.1.0";
+export const APP_VERSION = "4.2.0";
 export const APP_NAME = "sahiixx-os";
 
-async function probeOpa(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
-  const url = env.opaDispatchUrl?.replace(/\/dispatch\/?$/, "") || "http://127.0.0.1:8082";
+async function probeOpa(): Promise<{ ok: boolean; latencyMs: number; error?: string; configured: boolean }> {
+  const raw = env.opaDispatchUrl || "";
+  // Don't probe pure localhost from edge — always fails and wastes time.
+  const isLocal = /localhost|127\.0\.0\.1/i.test(raw);
+  if (!raw || isLocal) {
+    return { ok: false, latencyMs: 0, configured: !!raw, error: isLocal ? "local-only (not reachable from edge)" : "not set" };
+  }
+  const url = raw.replace(/\/dispatch\/?$/, "");
   const start = Date.now();
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 2500);
     const res = await fetch(url, { signal: ctrl.signal });
     clearTimeout(t);
-    return { ok: res.ok || res.status < 500, latencyMs: Date.now() - start };
+    return { ok: res.ok || res.status < 500, latencyMs: Date.now() - start, configured: true };
   } catch (e: any) {
-    return { ok: false, latencyMs: Date.now() - start, error: (e?.message ?? String(e)).slice(0, 120) };
+    return { ok: false, latencyMs: Date.now() - start, configured: true, error: (e?.message ?? String(e)).slice(0, 120) };
   }
 }
 
@@ -52,6 +59,7 @@ export const systemRouter = router({
 
     const mode = activeDatabaseMode();
     const opa = await probeOpa();
+    const estate = await estateHealth();
 
     const integrations = {
       database: { configured: !!(env.databaseUrl || (globalThis as any).__HYPERDRIVE_URL), ok: dbOk, mode, error: dbError, agentCount },
@@ -60,10 +68,29 @@ export const systemRouter = router({
       kimi: { configured: !!env.kimiApiKey },
       openai: { configured: !!env.openAiApiKey },
       anthropic: { configured: !!env.anthropicApiKey },
-      ollama: { configured: !!env.ollamaUrl, url: env.ollamaUrl ? env.ollamaUrl.replace(/\/\/.*@/, "//***@") : null, hasApiKey: !!env.ollamaApiKey },
+      ollama: {
+        configured: !!env.ollamaUrl,
+        url: env.ollamaUrl ? env.ollamaUrl.replace(/\/\/([^/@]+@)?/, "//") : null,
+        hasApiKey: !!env.ollamaApiKey,
+        cloud: /ollama\.com/i.test(env.ollamaUrl || ""),
+      },
       elevenlabs: { configured: !!env.elevenLabsApiKey },
       postiz: { configured: !!(env.postizApiUrl && env.postizApiKey) },
-      opa: { configured: !!env.opaDispatchUrl, ...opa },
+      opa: { configured: opa.configured, ok: opa.ok, latencyMs: opa.latencyMs, error: opa.error },
+      estate: {
+        configured: estateConfigured(),
+        ok: estate.ok,
+        latencyMs: estate.latencyMs,
+        error: estate.error,
+        url: estate.url,
+      },
+      jarvis: {
+        provider: env.jarvisProvider,
+        model: env.jarvisProvider === "ollama" ? env.jarvisOllamaModel : env.jarvisModel,
+      },
+      workersAi: {
+        configured: !!(globalThis as any).__WORKERS_AI,
+      },
     };
 
     const criticalOk = dbOk;
@@ -116,5 +143,31 @@ export const systemRouter = router({
       detail: JSON.stringify({ ok: !!(probe as any).ok, mode: (probe as any).mode }),
     });
     return { ok: true, probe };
+  }),
+
+  /** Edge Workers AI smoke (cheap model). Returns unavailable if AI binding missing. */
+  workersAiProbe: protectedProcedure.mutation(async ({ ctx }) => {
+    const ai = (globalThis as any).__WORKERS_AI as
+      | { run: (m: string, i: Record<string, unknown>) => Promise<unknown> }
+      | undefined;
+    if (!ai?.run) {
+      return { ok: false as const, error: "AI binding not present — redeploy with wrangler [ai] binding" };
+    }
+    try {
+      const start = Date.now();
+      const out = await ai.run("@cf/meta/llama-3.1-8b-instruct", {
+        messages: [{ role: "user", content: "Reply with exactly: OK" }],
+        max_tokens: 8,
+      });
+      await logActivity({
+        actor: ctx.user.email,
+        action: "system.workers_ai_probe",
+        resource: "ai",
+        detail: `${Date.now() - start}ms`,
+      });
+      return { ok: true as const, latencyMs: Date.now() - start, sample: out };
+    } catch (e: any) {
+      return { ok: false as const, error: (e?.message ?? String(e)).slice(0, 200) };
+    }
   }),
 });

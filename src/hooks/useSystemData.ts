@@ -23,6 +23,10 @@ export function useSystemHeartbeat() {
   return trpc.system.heartbeat.useMutation();
 }
 
+export function useWorkersAiProbe() {
+  return trpc.system.workersAiProbe.useMutation();
+}
+
 export function useAuthListUsers(enabled = true) {
   return trpc.auth.listUsers.useQuery(undefined, {
     enabled,
@@ -36,4 +40,30 @@ export function useAuthBootstrapAdmin() {
 
 export function useAuthChangePassword() {
   return trpc.auth.changePassword.useMutation();
+}
+
+export function useEstateConfig() {
+  return trpc.nexus.estateConfig.useQuery(undefined, { staleTime: 30_000 });
+}
+
+export function useEstateHealth() {
+  return trpc.nexus.estateHealth.useQuery(undefined, {
+    refetchInterval: 20_000,
+  });
+}
+
+export function useEstateLeads() {
+  return trpc.nexus.estateLeads.useQuery(undefined, {
+    refetchInterval: 15_000,
+  });
+}
+
+export function useImportLeadAsDeal() {
+  const utils = trpc.useUtils();
+  return trpc.nexus.importLeadAsDeal.useMutation({
+    onSuccess: () => {
+      utils.sahiixx.dealList.invalidate();
+      utils.nexus.estateLeads.invalidate();
+    },
+  });
 }

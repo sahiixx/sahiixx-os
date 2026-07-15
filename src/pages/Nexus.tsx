@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell, Tooltip } from "recharts";
 import { useDealList, useDealCreate } from "@/hooks/useSahiixxData";
+import { useEstateConfig, useEstateHealth, useEstateLeads, useImportLeadAsDeal } from "@/hooks/useSystemData";
 import { trpc } from "@/providers/trpc";
 
 type Tier = "HARD" | "MEDIUM" | "LOW" | "CLOSED";
@@ -25,8 +26,14 @@ export default function Nexus() {
   const utils = trpc.useUtils();
   const dealList = useDealList();
   const dealCreate = useDealCreate();
+  const estateCfg = useEstateConfig();
+  const estateHealth = useEstateHealth();
+  const estateLeads = useEstateLeads();
+  const importLead = useImportLeadAsDeal();
 
   const deals = dealList.data ?? [];
+  const liveLeads = estateLeads.data?.leads ?? [];
+  const liveOk = estateHealth.data?.ok ?? false;
 
   const counts: Record<Tier, number> = { HARD: 0, MEDIUM: 0, LOW: 0, CLOSED: 0 };
   let totalValue = 0;
@@ -71,7 +78,21 @@ export default function Nexus() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl tracking-widest text-nexus mb-6">NEXUS DEAL ENGINE</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
+        <h1 className="font-display text-2xl tracking-widest text-nexus">NEXUS DEAL ENGINE</h1>
+        <div className="flex items-center gap-2">
+          <span
+            className={`font-mono text-[10px] tracking-wider px-2 py-1 rounded border ${
+              liveOk
+                ? "border-emerald-500/40 text-emerald-400"
+                : "border-surface-hover text-text-muted"
+            }`}
+          >
+            LIVE ESTATE {liveOk ? "ONLINE" : estateCfg.data?.configured ? "DOWN" : "UNCONFIGURED"}
+            {estateHealth.data?.latencyMs != null && liveOk ? ` · ${estateHealth.data.latencyMs}ms` : ""}
+          </span>
+        </div>
+      </div>
 
       {/* summary tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -79,6 +100,51 @@ export default function Nexus() {
         <Tile label="TOTAL VALUE" value={fmtAed(totalValue)} accent="text-success" />
         <Tile label="AVG SCORE" value={String(avgScore)} accent="text-warning" />
         <Tile label="ACTIVE" value={String(activeCount)} accent="text-info" />
+      </div>
+
+      {/* Live estate leads bridge */}
+      <div className="border border-nexus/30 bg-surface rounded-lg p-4 mb-6">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="font-display text-sm tracking-widest text-nexus">LIVE ESTATE LEADS</h2>
+          <span className="font-mono text-[10px] text-text-muted truncate max-w-[50%]">
+            {estateCfg.data?.baseUrl ?? "set ESTATE_API_URL"}
+          </span>
+        </div>
+        {!estateCfg.data?.configured && (
+          <p className="font-mono text-xs text-text-muted mb-2">
+            Bridge offline on edge. Local Vite uses http://127.0.0.1:3001. For prod, tunnel WSL estate-api and set Pages secret ESTATE_API_URL.
+          </p>
+        )}
+        {estateLeads.data?.error && (
+          <div className="font-mono text-xs text-warning border border-warning/30 bg-warning/10 rounded px-3 py-2 mb-2">
+            {estateLeads.data.error}
+          </div>
+        )}
+        {liveLeads.length === 0 && !estateLeads.data?.error && (
+          <div className="font-mono text-xs text-text-muted">no live leads</div>
+        )}
+        <div className="space-y-2 max-h-56 overflow-y-auto">
+          {liveLeads.map((l) => (
+            <div key={l.id} className="flex items-center gap-2 border border-surface-hover bg-void rounded px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="font-mono text-sm text-text-primary truncate">{l.name}</div>
+                <div className="font-mono text-[10px] text-text-muted truncate">
+                  {[l.phone, l.email, l.status, l.property_title].filter(Boolean).join(" · ")}
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={importLead.isPending}
+                onClick={async () => {
+                  await importLead.mutateAsync({ leadId: l.id, tier: "MEDIUM" });
+                }}
+                className="font-mono text-[10px] tracking-wider px-2 py-1 rounded border border-nexus/40 text-nexus hover:bg-nexus/10 shrink-0"
+              >
+                IMPORT → DEAL
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

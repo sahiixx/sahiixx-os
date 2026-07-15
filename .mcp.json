@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "sahiix-knowledge": {
+      "command": "npx",
+      "args": ["tsx", "mcp/knowledge/src/index.ts"],
+      "cwd": "C:\\Users\\sahii\\sahiixx-os"
+    }
+  }
+}

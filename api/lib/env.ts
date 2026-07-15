@@ -124,6 +124,21 @@ export const env = {
   get opaApiKey() {
     return g("OPA_API_KEY") ?? process.env.OPA_API_KEY;
   },
+  // ── Live NEXUS / sahiix-estate (WSL app, optional public base URL) ──────────
+  // Local Vite default hits WSL-bound :3001. On Cloudflare Pages set
+  // ESTATE_API_URL to a tunnel / public host that reaches the estate API.
+  get estateApiUrl() {
+    const explicit = g("ESTATE_API_URL") ?? process.env.ESTATE_API_URL;
+    if (explicit) return explicit;
+    // Local Vite only — never default localhost on Cloudflare Pages/Workers.
+    const onPages = !!(g("CF_PAGES") || process.env.CF_PAGES);
+    const isProd = process.env.NODE_ENV === "production" || onPages;
+    if (!isProd) return "http://127.0.0.1:3001";
+    return "";
+  },
+  get estateApiKey() {
+    return g("ESTATE_API_KEY") ?? process.env.ESTATE_API_KEY;
+  },
 };
 
 // Setters for Cloudflare Workers env injection (called from boot.ts middleware).
@@ -166,3 +181,5 @@ export function setJarvisModel(m: string) { (globalThis as any).JARVIS_MODEL = m
 export function setJarvisOllamaModel(m: string) { (globalThis as any).JARVIS_OLLAMA_MODEL = m; }
 export function setOpaDispatchUrl(u: string) { (globalThis as any).OPA_DISPATCH_URL = u; }
 export function setOpaApiKey(k: string) { (globalThis as any).OPA_API_KEY = k; }
+export function setEstateApiUrl(u: string) { (globalThis as any).ESTATE_API_URL = u; }
+export function setEstateApiKey(k: string) { (globalThis as any).ESTATE_API_KEY = k; }

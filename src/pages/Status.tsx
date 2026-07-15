@@ -4,6 +4,7 @@ import {
   useSystemActivity,
   useSystemMetrics,
   useSystemHeartbeat,
+  useWorkersAiProbe,
   useAuthListUsers,
   useAuthBootstrapAdmin,
   useAuthChangePassword,
@@ -32,6 +33,7 @@ export default function Status() {
   const activity = useSystemActivity(40);
   const metrics = useSystemMetrics();
   const heartbeat = useSystemHeartbeat();
+  const aiProbe = useWorkersAiProbe();
   const users = useAuthListUsers(!!isAdmin);
   const bootstrap = useAuthBootstrapAdmin();
   const changePw = useAuthChangePassword();
@@ -110,13 +112,32 @@ export default function Status() {
             REFRESH
           </button>
           {isAdmin && (
-            <button
-              onClick={onHeartbeat}
-              disabled={heartbeat.isPending}
-              className="font-mono text-xs px-3 py-1 rounded border border-red-primary/40 text-red-primary hover:bg-red-primary/10"
-            >
-              HEARTBEAT
-            </button>
+            <>
+              <button
+                onClick={onHeartbeat}
+                disabled={heartbeat.isPending}
+                className="font-mono text-xs px-3 py-1 rounded border border-red-primary/40 text-red-primary hover:bg-red-primary/10"
+              >
+                HEARTBEAT
+              </button>
+              <button
+                onClick={async () => {
+                  setMsg(null);
+                  try {
+                    const r = await aiProbe.mutateAsync();
+                    setMsg(r.ok ? `Workers AI OK (${(r as any).latencyMs}ms)` : `Workers AI: ${(r as any).error}`);
+                    activity.refetch();
+                    status.refetch();
+                  } catch (e: any) {
+                    setMsg(e?.message ?? "AI probe failed");
+                  }
+                }}
+                disabled={aiProbe.isPending}
+                className="font-mono text-xs px-3 py-1 rounded border border-surface-hover text-text-secondary hover:text-text-primary"
+              >
+                AI PROBE
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -143,9 +164,28 @@ export default function Status() {
               secret: {integ?.auth.hasCustomSecret ? "custom" : "dev-fallback"}
             </div>
           </Card>
-          <Card title="OPA" ok={!!integ?.opa.ok}>
+          <Card title="OPA" ok={!!integ?.opa?.ok}>
             <div className="font-mono text-xs text-text-secondary">
-              {integ?.opa.ok ? `${integ.opa.latencyMs}ms` : integ?.opa.error ?? "unreachable (expected on Pages)"}
+              {integ?.opa?.ok
+                ? `${integ.opa.latencyMs}ms`
+                : integ?.opa?.error ?? "unreachable (expected on Pages)"}
+            </div>
+          </Card>
+          <Card title="Live Estate" ok={!!integ?.estate?.ok}>
+            <div className="font-mono text-xs text-text-secondary truncate">
+              {integ?.estate?.ok
+                ? `${integ.estate.latencyMs}ms`
+                : integ?.estate?.error ?? "set ESTATE_API_URL"}
+            </div>
+          </Card>
+          <Card title="Jarvis" ok={!!integ?.jarvis?.provider}>
+            <div className="font-mono text-xs text-text-secondary">
+              {integ?.jarvis?.provider ?? "—"} · {integ?.jarvis?.model ?? "—"}
+            </div>
+          </Card>
+          <Card title="Workers AI" ok={!!integ?.workersAi?.configured}>
+            <div className="font-mono text-xs text-text-secondary">
+              {integ?.workersAi?.configured ? "AI binding live" : "redeploy with [ai] binding"}
             </div>
           </Card>
           <Card title="LLM providers" ok={!!(integ?.openrouter.configured || integ?.kimi.configured || integ?.openai.configured || integ?.ollama.configured)}>
@@ -154,7 +194,7 @@ export default function Status() {
               <Pill ok={!!integ?.kimi.configured} label="Kimi" />
               <Pill ok={!!integ?.openai.configured} label="OpenAI" />
               <Pill ok={!!integ?.anthropic.configured} label="Anthropic" />
-              <Pill ok={!!integ?.ollama.configured} label="Ollama" />
+              <Pill ok={!!integ?.ollama.configured} label={integ?.ollama?.cloud ? "Ollama Cloud" : "Ollama"} />
             </div>
           </Card>
           <Card title="Voice / social" ok={!!(integ?.elevenlabs.configured || integ?.postiz.configured)}>

@@ -9,6 +9,7 @@ import { authRouter, } from "./auth-router";
 import { jarvisRouter } from "./jarvis-router";
 import { documentsRouter } from "./documents-router";
 import { systemRouter, APP_VERSION, APP_NAME } from "./system-router";
+import { nexusRouter } from "./nexus-router";
 import { registerJarvisRoutes } from "./jarvis/stream";
 import { router, verifyBearer, type AuthContext } from "./context";
 import {
@@ -19,6 +20,7 @@ import {
   setOpaDispatchUrl, setOpaApiKey,
   setElevenLabsApiKey, setElevenLabsVoiceId, setElevenLabsModel,
   setPostizApiUrl, setPostizApiKey,
+  setEstateApiUrl, setEstateApiKey,
 } from "./lib/env";
 import { testConnection, getDb, activeDatabaseMode } from "./queries/connection";
 import { agents } from "@db/schema";
@@ -38,6 +40,7 @@ const appRouter = router({
   jarvis: jarvisRouter,
   documents: documentsRouter,
   system: systemRouter,
+  nexus: nexusRouter,
   ping: pingRouter,
 });
 
@@ -53,14 +56,22 @@ type HyperdriveBinding = {
   database: string;
 };
 
+/** Minimal Workers AI binding surface we use for edge probe / fallback. */
+type AiBinding = {
+  run: (model: string, input: Record<string, unknown>) => Promise<unknown>;
+};
+
 type Bindings = {
   DATABASE_URL?: string;
   /** Prefer Hyperdrive for edge Postgres (Neon via TCP pooler). */
   HYPERDRIVE?: HyperdriveBinding;
+  /** Workers AI binding (wrangler [ai] binding = "AI") */
+  AI?: AiBinding;
   AUTH_SECRET?: string;
   ADMIN_EMAIL?: string;
   ADMIN_PASSWORD?: string;
   ASSETS?: { fetch: (req: Request) => Response };
+  CF_PAGES?: string;
   // Jarvis (realtime voice agent) — all optional; zero keys = local Ollama + browser TTS.
   OPENROUTER_API_KEY?: string;
   KIMI_API_KEY?: string;
@@ -82,6 +93,9 @@ type Bindings = {
   // Postiz (self-hostable social scheduler — SARA content factory backend). Optional.
   POSTIZ_API_URL?: string;
   POSTIZ_API_KEY?: string;
+  // Live NEXUS / sahiix-estate bridge
+  ESTATE_API_URL?: string;
+  ESTATE_API_KEY?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -96,6 +110,9 @@ app.use("*", async (c, next) => {
   if (c.env?.HYPERDRIVE?.connectionString) {
     setHyperdriveUrl(c.env.HYPERDRIVE.connectionString);
   }
+  if (c.env?.CF_PAGES) (globalThis as any).CF_PAGES = c.env.CF_PAGES;
+  // Workers AI binding (edge inference)
+  if (c.env?.AI) (globalThis as any).__WORKERS_AI = c.env.AI;
   if (c.env?.AUTH_SECRET) setAuthSecret(c.env.AUTH_SECRET);
   if (c.env?.ADMIN_EMAIL && c.env?.ADMIN_PASSWORD) {
     setAdminCreds(c.env.ADMIN_EMAIL, c.env.ADMIN_PASSWORD);
@@ -119,6 +136,8 @@ app.use("*", async (c, next) => {
   if (c.env?.ELEVENLABS_MODEL) setElevenLabsModel(c.env.ELEVENLABS_MODEL);
   if (c.env?.POSTIZ_API_URL) setPostizApiUrl(c.env.POSTIZ_API_URL);
   if (c.env?.POSTIZ_API_KEY) setPostizApiKey(c.env.POSTIZ_API_KEY);
+  if (c.env?.ESTATE_API_URL) setEstateApiUrl(c.env.ESTATE_API_URL);
+  if (c.env?.ESTATE_API_KEY) setEstateApiKey(c.env.ESTATE_API_KEY);
   inc("requests_total");
   await next();
 });

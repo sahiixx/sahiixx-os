@@ -18,5 +18,5 @@
     },
     "baseUrl": "."
   },
-  "include": ["src/**/*", "api/**/*", "db/**/*"]
+  "include": ["src/**/*", "api/**/*", "db/**/*", "mcp/**/*"]
 }

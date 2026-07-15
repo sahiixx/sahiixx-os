@@ -2,7 +2,15 @@
 
 Full-stack cyberpunk operating system — modules, real Neon Postgres, Cloudflare Pages edge API.
 
-**Version:** 4.1.0 · **Prod:** https://sahiixx-os.pages.dev
+**Version:** 4.2.0 · **Prod:** https://sahiixx-os.pages.dev
+
+### Cloudflare connectors (this deploy)
+| Binding / secret | Purpose |
+|------------------|---------|
+| Hyperdrive `HYPERDRIVE` | Neon TCP pooler (optional path) |
+| Workers AI `AI` | Edge LLM probe / future Jarvis fallback |
+| Observability | Live logs in CF dashboard |
+| Secrets | `DATABASE_URL`, `AUTH_*`, `OLLAMA_*`, `OPENROUTER_*`, `ELEVENLABS_*`, … |
 
 ## Stack
 - **Frontend:** React 19 + TypeScript + Tailwind + Vite 7
@@ -39,7 +47,13 @@ Full-stack cyberpunk operating system — modules, real Neon Postgres, Cloudflar
 | `/api/trpc/*` | App API (superjson) |
 
 ## tRPC routers
-`sahiixx` · `auth` · `jarvis` · `documents` · `system` · `ping`
+`sahiixx` · `auth` · `jarvis` · `documents` · `system` · `nexus` · `ping`
+
+### Live NEXUS estate bridge
+- Local: defaults to `http://127.0.0.1:3001` (WSL `estate-api`)
+- Prod: set Pages secret `ESTATE_API_URL` to a tunnel/public host
+- UI: Nexus page → **LIVE ESTATE LEADS** + Import → Deal
+- tRPC: `nexus.estateHealth` · `nexus.estateLeads` · `nexus.importLeadAsDeal`
 
 ### Auth highlights
 - Login rate limit (10 / 15 min per email)

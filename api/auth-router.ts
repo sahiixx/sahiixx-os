@@ -7,7 +7,7 @@ import { env } from "./lib/env";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 import { hashPassword, verifyPassword } from "./lib/password";
-import { rateLimit } from "./lib/rate-limit";
+import { rateLimitAsync } from "./lib/rate-limit";
 import { logActivity } from "./lib/activity";
 import { inc } from "./lib/metrics";
 
@@ -34,7 +34,7 @@ export const authRouter = router({
     }))
     .mutation(async ({ input }) => {
       const emailKey = input.email.toLowerCase();
-      const rl = rateLimit(`login:${emailKey}`, 10, 15 * 60_000);
+      const rl = await rateLimitAsync(`login:${emailKey}`, 10, 15 * 60_000);
       if (!rl.allowed) {
         inc("login_rate_limited");
         throw new TRPCError({
