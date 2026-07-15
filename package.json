@@ -4,15 +4,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && esbuild api/boot.ts --platform=node --bundle --format=esm --outdir=dist --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\"",
+    "build": "vite build && node scripts/build-api.mjs",
     "start": "NODE_ENV=production node dist/boot.js",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx db/seed.ts",
-    "check": "tsc -b"
+    "check": "tsc -b",
+    "mcp:knowledge": "tsx mcp/knowledge/src/index.ts"
   },
   "dependencies": {
+    "@emotion/is-prop-valid": "^1.4.0",
     "@fontsource/inter": "^5.0.0",
     "@fontsource/jetbrains-mono": "^5.0.0",
     "@fontsource/orbitron": "^5.0.0",
@@ -31,6 +33,7 @@
     "nanoid": "^5.0.0",
     "pdfjs-dist": "^4.10.38",
     "pg": "^8.13.0",
+    "postgres": "^3.4.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.0",
@@ -41,6 +44,7 @@
   },
   "devDependencies": {
     "@hono/vite-dev-server": "^0.18.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
     "@types/cookie": "^1.0.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",
