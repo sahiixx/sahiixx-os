@@ -3,7 +3,8 @@
  * Resets on isolate cold start (expected on Workers).
  */
 
-const startedAt = Date.now();
+// Workers may evaluate modules with a frozen/zero clock at init — stamp on first use.
+let startedAt = 0;
 
 const counters: Record<string, number> = {
   requests_total: 0,
@@ -16,6 +17,7 @@ const counters: Record<string, number> = {
 };
 
 export function inc(name: keyof typeof counters | string, by = 1) {
+  if (!startedAt) startedAt = Date.now();
   counters[name] = (counters[name] ?? 0) + by;
 }
 
@@ -24,7 +26,8 @@ export function getCounters() {
 }
 
 export function getUptimeSec() {
-  return Math.floor((Date.now() - startedAt) / 1000);
+  if (!startedAt) startedAt = Date.now();
+  return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
 }
 
 export function prometheusText(extra: Record<string, string | number> = {}) {
