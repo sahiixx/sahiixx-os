@@ -2,7 +2,7 @@
 
 Full-stack cyberpunk operating system — modules, real Neon Postgres, Cloudflare Pages edge API.
 
-**Version:** 4.2.0 · **Prod:** https://sahiixx-os.pages.dev
+**Version:** 4.2.1 · **Prod:** https://sahiixx-os.pages.dev
 
 ### Cloudflare connectors (this deploy)
 | Binding / secret | Purpose |
@@ -51,7 +51,15 @@ Full-stack cyberpunk operating system — modules, real Neon Postgres, Cloudflar
 
 ### Live NEXUS estate bridge
 - Local: defaults to `http://127.0.0.1:3001` (WSL `estate-api`)
-- Prod: set Pages secret `ESTATE_API_URL` to a tunnel/public host
+- Prod: Cloudflare quick tunnel → Pages secret `ESTATE_API_URL`
+  ```bash
+  # WSL: expose estate (requires cloudflared in ~/.local/bin)
+  npm run tunnel:estate
+  # copy printed https://*.trycloudflare.com URL
+  echo "https://….trycloudflare.com" | npx wrangler pages secret put ESTATE_API_URL --project-name=sahiixx-os
+  npm run build && npx wrangler pages deploy dist/public --project-name=sahiixx-os
+  npm run smoke:prod
+  ```
 - UI: Nexus page → **LIVE ESTATE LEADS** + Import → Deal
 - tRPC: `nexus.estateHealth` · `nexus.estateLeads` · `nexus.importLeadAsDeal`
 

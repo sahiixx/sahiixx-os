@@ -12,7 +12,7 @@ import { getCounters, getUptimeSec } from "./lib/metrics";
 import { estateHealth, estateConfigured } from "./lib/estate";
 import { sql } from "drizzle-orm";
 
-export const APP_VERSION = "4.2.0";
+export const APP_VERSION = "4.2.1";
 export const APP_NAME = "sahiixx-os";
 
 async function probeOpa(): Promise<{ ok: boolean; latencyMs: number; error?: string; configured: boolean }> {

@@ -1,6 +1,6 @@
 {
   "name": "sahiixx-os",
-  "version": "4.2.0",
+  "version": "4.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx db/seed.ts",
     "check": "tsc -b",
+    "smoke:prod": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-prod.ps1",
+    "tunnel:estate": "wsl -d Ubuntu-24.04 -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/start-estate-tunnel.sh",
     "mcp:knowledge": "tsx mcp/knowledge/src/index.ts"
   },
   "dependencies": {
