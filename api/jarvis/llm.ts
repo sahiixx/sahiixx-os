@@ -302,47 +302,102 @@ function safeParseArgs(args: string): Record<string, unknown> {
 
 // ── Provider streaming ───────────────────────────────────────────────────────
 
+/** True on Cloudflare Pages/Workers (no localhost Ollama). */
+function onEdge(): boolean {
+  return !!(
+    (globalThis as any).CF_PAGES ||
+    process.env.CF_PAGES ||
+    process.env.CF_PAGES_URL ||
+    (globalThis as any).__WORKERS_AI
+  );
+}
+
+function workersAiAvailable(): boolean {
+  const ai = (globalThis as any).__WORKERS_AI;
+  return !!(ai && typeof ai.run === "function");
+}
+
+/**
+ * Cascade: try primary, then other configured cloud providers, then Workers AI
+ * on edge — never hit localhost:11434 from Pages (that 403s with CF error 1003).
+ */
 async function* streamChat(provider: string, messages: JarvisMessage[]): AsyncGenerator<Chunk> {
-  if (provider === "ollama") {
-    // Ollama may be LOCAL (localhost:11434, keyless) or CLOUD (https://ollama.com,
-    // Bearer key). Local runs directly. Cloud wraps the same pre-stream-failure
-    // fallback the openrouter/kimi paths use: on an expired key / billing / outage
-    // (401/403/5xx before any bytes flow), emit a spoken warning then retry against
-    // keyless local Ollama. In dev that recovers; on the Cloudflare edge (no local
-    // Ollama) the retry fails cleanly via runTurn's catch rather than hard-crashing
-    // with a raw "LLM stream failed: Ollama HTTP 401". Mid-stream errors (something
-    // already emitted) propagate untouched so output is never garbled.
-    if (!ollamaIsCloud()) { yield* ollamaStream(messages); return; }
+  const chain = buildProviderChain(provider);
+  let lastErr: unknown = null;
+  for (let i = 0; i < chain.length; i++) {
+    const p = chain[i]!;
+    const label = providerLabel(p);
     let emitted = false;
     try {
-      for await (const c of ollamaStream(messages)) { emitted = true; yield c; }
+      if (i > 0) {
+        yield {
+          content: `[${providerLabel(chain[i - 1]!)} unavailable — trying ${label}.] `,
+          toolCallsDelta: null,
+          finishReason: null,
+        };
+      }
+      for await (const c of streamOneProvider(p, messages)) {
+        emitted = true;
+        yield c;
+      }
+      return;
     } catch (e) {
       if (emitted) throw e;
-      yield { content: "[Ollama Cloud is unavailable — falling back to the local model. Check OLLAMA_API_KEY if this persists.] ", toolCallsDelta: null, finishReason: null };
-      yield* ollamaStream(messages, { forceLocal: true });
+      lastErr = e;
     }
-    return;
   }
-  // Cloud providers (openrouter / kimi) with a graceful fallback to the local
-  // Ollama model on a pre-stream HTTP failure, so Jarvis never dies hard if a
-  // cloud key/policy/account is misconfigured (e.g. OpenRouter's data-policy
-  // 404 that blocks every model until openrouter.ai/settings/privacy is flipped).
-  // Only falls back when nothing has been emitted yet, so a mid-stream error can
-  // never produce garbled double output. The warning is yielded as content so the
-  // user hears it via TTS — degradation is never silent.
-  const label = provider === "kimi" ? "Kimi" : "OpenRouter";
-  const cloud = provider === "kimi" ? kimiStream(messages) : openRouterStream(messages);
-  let emitted = false;
-  try {
-    for await (const c of cloud) { emitted = true; yield c; }
-  } catch (e) {
-    if (emitted) throw e; // mid-stream failure — propagate rather than garble
-    yield {
-      content: `[${label} is unavailable right now — falling back to the local model.] `,
-      toolCallsDelta: null,
-      finishReason: null,
-    };
-    yield* ollamaStream(messages);
+  const msg = lastErr instanceof Error ? lastErr.message : String(lastErr ?? "all providers failed");
+  throw new Error(msg);
+}
+
+function providerLabel(p: string): string {
+  switch (p) {
+    case "xai": return "Grok (xAI)";
+    case "kimi": return "Kimi";
+    case "openrouter": return "OpenRouter";
+    case "ollama": return ollamaIsCloud() ? "Ollama Cloud" : "Ollama";
+    case "workers-ai": return "Workers AI";
+    default: return p;
+  }
+}
+
+/** Ordered fallback list starting with the requested provider. */
+function buildProviderChain(primary: string): string[] {
+  const out: string[] = [];
+  const add = (p: string) => { if (!out.includes(p)) out.push(p); };
+  add(primary);
+  if (env.xaiApiKey) add("xai");
+  if (env.kimiApiKey) add("kimi");
+  if (env.openRouterApiKey) add("openrouter");
+  if (env.ollamaUrl) add("ollama");
+  // Edge: Workers AI binding. Local dev: keyless localhost Ollama (only off-edge).
+  if (onEdge() && workersAiAvailable()) add("workers-ai");
+  else if (!onEdge()) add("ollama-local");
+  return out;
+}
+
+async function* streamOneProvider(provider: string, messages: JarvisMessage[]): AsyncGenerator<Chunk> {
+  switch (provider) {
+    case "xai":
+      yield* xaiStream(messages);
+      return;
+    case "kimi":
+      yield* kimiStream(messages);
+      return;
+    case "openrouter":
+      yield* openRouterStream(messages);
+      return;
+    case "ollama":
+      yield* ollamaStream(messages);
+      return;
+    case "ollama-local":
+      yield* ollamaStream(messages, { forceLocal: true });
+      return;
+    case "workers-ai":
+      yield* workersAiStream(messages);
+      return;
+    default:
+      throw new Error(`Unknown Jarvis provider: ${provider}`);
   }
 }
 
@@ -390,8 +445,7 @@ async function* openAICompatibleStream(opts: {
 }): AsyncGenerator<Chunk> {
   const { url, key, model, extraHeaders = {}, messages, label } = opts;
   if (!key) {
-    yield { content: `${label} key is not set and no local fallback is configured.`, toolCallsDelta: null, finishReason: "stop" };
-    return;
+    throw new Error(`${label} key is not set`);
   }
   const res = await fetch(url, {
     method: "POST",
@@ -436,6 +490,19 @@ async function* openRouterStream(messages: JarvisMessage[]): AsyncGenerator<Chun
   });
 }
 
+async function* xaiStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
+  // xAI Grok — OpenAI-compatible Chat Completions. Put yourself (Grok) in Jarvis
+  // by setting XAI_API_KEY + optional JARVIS_PROVIDER=xai / XAI_MODEL=grok-3-mini.
+  yield* openAICompatibleStream({
+    url: `${env.xaiBaseUrl.replace(/\/$/, "")}/chat/completions`,
+    key: env.xaiApiKey,
+    model: env.jarvisModel || env.xaiModel,
+    extraHeaders: {},
+    messages,
+    label: "Grok (xAI)",
+  });
+}
+
 async function* kimiStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
   // Kimi Coding platform (sk-kimi-* keys). OpenAI-compatible, but requires the
   // User-Agent: KimiCLI/1.0 header or it 403s. reasoning_content is ignored by
@@ -448,6 +515,67 @@ async function* kimiStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
     messages,
     label: "Kimi",
   });
+}
+
+/**
+ * Cloudflare Workers AI edge fallback (no external key). Text-only for chat when
+ * cloud providers rate-limit; tool_calls are not reliable on small edge models.
+ */
+async function* workersAiStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
+  const ai = (globalThis as any).__WORKERS_AI as
+    | { run: (model: string, input: Record<string, unknown>) => Promise<unknown> }
+    | undefined;
+  if (!ai?.run) throw new Error("Workers AI binding missing — redeploy with [ai] binding = AI");
+
+  // Flatten tool turns; edge models rarely support OpenAI tool_calls wire format.
+  const msgs = messages.map((m) => {
+    if (m.role === "tool") {
+      return { role: "user" as const, content: `Tool result (${m.tool_call_id ?? "tool"}): ${m.content ?? ""}` };
+    }
+    if (m.role === "assistant" && m.tool_calls?.length) {
+      const names = m.tool_calls.map((t) => t.function.name).join(", ");
+      return { role: "assistant" as const, content: (m.content || "") + (names ? ` [called: ${names}]` : "") };
+    }
+    return { role: m.role as "system" | "user" | "assistant", content: m.content ?? "" };
+  });
+
+  // Same model family as system.workersAiProbe (post-deprecation catalog).
+  const model = "@cf/zai-org/glm-4.7-flash";
+  let out: unknown;
+  try {
+    out = await ai.run(model, { messages: msgs, stream: true, max_tokens: 1024 });
+  } catch {
+    out = await ai.run(model, { messages: msgs, max_tokens: 1024 });
+  }
+
+  // Streaming ReadableStream (SSE or NDJSON)
+  if (out && typeof (out as any).getReader === "function") {
+    for await (const line of readLines(out as ReadableStream<Uint8Array>)) {
+      const raw = line.startsWith("data:") ? line.slice(5).trim() : line.trim();
+      if (!raw || raw === "[DONE]") continue;
+      let json: any;
+      try { json = JSON.parse(raw); } catch { continue; }
+      const piece =
+        (typeof json.response === "string" && json.response) ||
+        (typeof json?.choices?.[0]?.delta?.content === "string" && json.choices[0].delta.content) ||
+        (typeof json?.delta?.content === "string" && json.delta.content) ||
+        null;
+      if (piece) yield { content: piece, toolCallsDelta: null, finishReason: null };
+    }
+    yield { content: null, toolCallsDelta: null, finishReason: "stop" };
+    return;
+  }
+
+  // Non-stream object
+  const text =
+    (out as any)?.response ??
+    (out as any)?.result?.response ??
+    (typeof out === "string" ? out : null);
+  if (typeof text === "string" && text.trim()) {
+    yield { content: text, toolCallsDelta: null, finishReason: "stop" };
+    return;
+  }
+  throw new Error(`Workers AI returned empty output: ${JSON.stringify(out).slice(0, 200)}`);
 }
 
 function ollamaIsCloud(): boolean {
@@ -478,6 +606,7 @@ async function* ollamaStream(messages: JarvisMessage[], opts?: { forceLocal?: bo
     const isCloud = !opts?.forceLocal && ollamaIsCloud();
     const hint = res.status === 404 && !isCloud ? " — is Ollama running on :11434?"
       : res.status === 401 && isCloud ? " — OLLAMA_API_KEY is missing/expired; check ollama.com/settings/keys"
+      : res.status === 429 && isCloud ? " — Ollama Cloud rate limit; will try next provider"
       : "";
     throw new Error(`Ollama HTTP ${res.status} at ${url}: ${detail.slice(0, 300)}${hint}`);
   }

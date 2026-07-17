@@ -65,6 +65,7 @@ export const systemRouter = router({
       database: { configured: !!(env.databaseUrl || (globalThis as any).__HYPERDRIVE_URL), ok: dbOk, mode, error: dbError, agentCount },
       auth: { configured: true, hasCustomSecret: !!((globalThis as any).AUTH_SECRET || process.env.AUTH_SECRET) },
       openrouter: { configured: !!env.openRouterApiKey },
+      xai: { configured: !!env.xaiApiKey },
       kimi: { configured: !!env.kimiApiKey },
       openai: { configured: !!env.openAiApiKey },
       anthropic: { configured: !!env.anthropicApiKey },
@@ -110,6 +111,7 @@ export const systemRouter = router({
     return {
       database: !!(env.databaseUrl || (globalThis as any).__HYPERDRIVE_URL),
       openrouter: !!env.openRouterApiKey,
+      xai: !!env.xaiApiKey,
       kimi: !!env.kimiApiKey,
       openai: !!env.openAiApiKey,
       anthropic: !!env.anthropicApiKey,

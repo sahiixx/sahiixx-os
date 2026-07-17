@@ -52,6 +52,16 @@ export const env = {
   get openRouterApiKey() {
     return g("OPENROUTER_API_KEY") ?? process.env.OPENROUTER_API_KEY;
   },
+  /** xAI / Grok (OpenAI-compatible https://api.x.ai/v1). Optional Jarvis provider. */
+  get xaiApiKey() {
+    return g("XAI_API_KEY") ?? process.env.XAI_API_KEY;
+  },
+  get xaiBaseUrl() {
+    return g("XAI_BASE_URL") ?? process.env.XAI_BASE_URL ?? "https://api.x.ai/v1";
+  },
+  get xaiModel() {
+    return g("XAI_MODEL") ?? process.env.XAI_MODEL ?? "grok-3-mini";
+  },
   get kimiApiKey() {
     // "sk-kimi-…" keys from the Kimi Coding platform (platform.kimi.ai / kimi.com/code).
     // These are NOT valid against api.moonshot.ai/v1 (returns 401) — they must be
@@ -112,15 +122,21 @@ export const env = {
   get postizApiKey() {
     return g("POSTIZ_API_KEY") ?? process.env.POSTIZ_API_KEY;
   },
-  /** Provider: explicit JARVIS_PROVIDER wins; else auto-pick kimi > openrouter > ollama. */
+  /** Provider: explicit JARVIS_PROVIDER wins; else auto-pick xai > kimi > openrouter > ollama. */
   get jarvisProvider() {
     const explicit = g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER;
     if (explicit) return explicit;
-    return this.kimiApiKey ? "kimi" : this.openRouterApiKey ? "openrouter" : "ollama";
+    if (this.xaiApiKey) return "xai";
+    if (this.kimiApiKey) return "kimi";
+    if (this.openRouterApiKey) return "openrouter";
+    return "ollama";
   },
   get jarvisModel() {
     // Model id for the active provider. Default is OpenAI-compatible; set
-    // JARVIS_MODEL explicitly for other providers (e.g. kimi-k2.6 for Kimi).
+    // JARVIS_MODEL explicitly (e.g. kimi-k2.6, grok-3-mini).
+    if ((g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER ?? this.jarvisProvider) === "xai") {
+      return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? this.xaiModel;
+    }
     return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? "openai/gpt-4o-mini";
   },
   get jarvisOllamaModel() {
@@ -176,6 +192,9 @@ export function setAdminCreds(email: string, password: string) {
 // Jarvis env setters — only needed for the Cloudflare deploy path (Vite dev
 // reads these from .env via process.env automatically). Mirror the pattern above.
 export function setOpenRouterApiKey(k: string) { (globalThis as any).OPENROUTER_API_KEY = k; }
+export function setXaiApiKey(k: string) { (globalThis as any).XAI_API_KEY = cleanEnv(k) ?? ""; }
+export function setXaiBaseUrl(u: string) { (globalThis as any).XAI_BASE_URL = cleanEnv(u) ?? ""; }
+export function setXaiModel(m: string) { (globalThis as any).XAI_MODEL = cleanEnv(m) ?? ""; }
 export function setKimiApiKey(k: string) { (globalThis as any).KIMI_API_KEY = k; }
 export function setKimiBaseUrl(u: string) { (globalThis as any).KIMI_BASE_URL = u; }
 export function setOpenAiApiKey(k: string) { (globalThis as any).OPENAI_API_KEY = k; }

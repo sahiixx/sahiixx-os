@@ -16,6 +16,7 @@ import {
   setDatabaseUrl, setHyperdriveUrl, setAuthSecret, setAdminCreds,
   setOpenRouterApiKey, setOpenAiApiKey, setAnthropicApiKey, setRetellApiKey,
   setKimiApiKey, setKimiBaseUrl,
+  setXaiApiKey, setXaiBaseUrl, setXaiModel,
   setOllamaUrl, setOllamaApiKey, setJarvisProvider, setJarvisModel, setJarvisOllamaModel,
   setOpaDispatchUrl, setOpaApiKey,
   setElevenLabsApiKey, setElevenLabsVoiceId, setElevenLabsModel,
@@ -74,6 +75,9 @@ type Bindings = {
   CF_PAGES?: string;
   // Jarvis (realtime voice agent) — all optional; zero keys = local Ollama + browser TTS.
   OPENROUTER_API_KEY?: string;
+  XAI_API_KEY?: string;
+  XAI_BASE_URL?: string;
+  XAI_MODEL?: string;
   KIMI_API_KEY?: string;
   KIMI_BASE_URL?: string;
   OPENAI_API_KEY?: string;
@@ -119,6 +123,9 @@ app.use("*", async (c, next) => {
   }
   // Jarvis env injection (Cloudflare path only; Vite dev reads .env via process.env).
   if (c.env?.OPENROUTER_API_KEY) setOpenRouterApiKey(c.env.OPENROUTER_API_KEY);
+  if (c.env?.XAI_API_KEY) setXaiApiKey(c.env.XAI_API_KEY);
+  if (c.env?.XAI_BASE_URL) setXaiBaseUrl(c.env.XAI_BASE_URL);
+  if (c.env?.XAI_MODEL) setXaiModel(c.env.XAI_MODEL);
   if (c.env?.KIMI_API_KEY) setKimiApiKey(c.env.KIMI_API_KEY);
   if (c.env?.KIMI_BASE_URL) setKimiBaseUrl(c.env.KIMI_BASE_URL);
   if (c.env?.OPENAI_API_KEY) setOpenAiApiKey(c.env.OPENAI_API_KEY);
