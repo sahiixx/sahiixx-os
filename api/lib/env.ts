@@ -62,6 +62,17 @@ export const env = {
   get xaiModel() {
     return g("XAI_MODEL") ?? process.env.XAI_MODEL ?? "grok-3-mini";
   },
+  /** Xiaomi MiMo Open Platform (OpenAI-compatible https://api.xiaomimimo.com/v1). */
+  get mimoApiKey() {
+    return g("MIMO_API_KEY") ?? process.env.MIMO_API_KEY;
+  },
+  get mimoBaseUrl() {
+    return g("MIMO_BASE_URL") ?? process.env.MIMO_BASE_URL ?? "https://api.xiaomimimo.com/v1";
+  },
+  get mimoModel() {
+    // V2.5 series (V2 deprecated Jun 2026). Prefer pro for quality; flash for latency.
+    return g("MIMO_MODEL") ?? process.env.MIMO_MODEL ?? "mimo-v2.5-pro";
+  },
   get kimiApiKey() {
     // "sk-kimi-…" keys from the Kimi Coding platform (platform.kimi.ai / kimi.com/code).
     // These are NOT valid against api.moonshot.ai/v1 (returns 401) — they must be
@@ -122,10 +133,11 @@ export const env = {
   get postizApiKey() {
     return g("POSTIZ_API_KEY") ?? process.env.POSTIZ_API_KEY;
   },
-  /** Provider: explicit JARVIS_PROVIDER wins; else auto-pick xai > kimi > openrouter > ollama. */
+  /** Provider: explicit JARVIS_PROVIDER wins; else auto-pick mimo > xai > kimi > openrouter > ollama. */
   get jarvisProvider() {
     const explicit = g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER;
     if (explicit) return explicit;
+    if (this.mimoApiKey) return "mimo";
     if (this.xaiApiKey) return "xai";
     if (this.kimiApiKey) return "kimi";
     if (this.openRouterApiKey) return "openrouter";
@@ -133,10 +145,10 @@ export const env = {
   },
   get jarvisModel() {
     // Model id for the active provider. Default is OpenAI-compatible; set
-    // JARVIS_MODEL explicitly (e.g. kimi-k2.6, grok-3-mini).
-    if ((g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER ?? this.jarvisProvider) === "xai") {
-      return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? this.xaiModel;
-    }
+    // JARVIS_MODEL explicitly (e.g. kimi-k2.6, grok-3-mini, mimo-v2.5-pro).
+    const p = g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER ?? this.jarvisProvider;
+    if (p === "xai") return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? this.xaiModel;
+    if (p === "mimo") return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? this.mimoModel;
     return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? "openai/gpt-4o-mini";
   },
   get jarvisOllamaModel() {
@@ -195,6 +207,9 @@ export function setOpenRouterApiKey(k: string) { (globalThis as any).OPENROUTER_
 export function setXaiApiKey(k: string) { (globalThis as any).XAI_API_KEY = cleanEnv(k) ?? ""; }
 export function setXaiBaseUrl(u: string) { (globalThis as any).XAI_BASE_URL = cleanEnv(u) ?? ""; }
 export function setXaiModel(m: string) { (globalThis as any).XAI_MODEL = cleanEnv(m) ?? ""; }
+export function setMimoApiKey(k: string) { (globalThis as any).MIMO_API_KEY = cleanEnv(k) ?? ""; }
+export function setMimoBaseUrl(u: string) { (globalThis as any).MIMO_BASE_URL = cleanEnv(u) ?? ""; }
+export function setMimoModel(m: string) { (globalThis as any).MIMO_MODEL = cleanEnv(m) ?? ""; }
 export function setKimiApiKey(k: string) { (globalThis as any).KIMI_API_KEY = k; }
 export function setKimiBaseUrl(u: string) { (globalThis as any).KIMI_BASE_URL = u; }
 export function setOpenAiApiKey(k: string) { (globalThis as any).OPENAI_API_KEY = k; }

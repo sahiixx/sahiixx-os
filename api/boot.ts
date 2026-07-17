@@ -17,6 +17,7 @@ import {
   setOpenRouterApiKey, setOpenAiApiKey, setAnthropicApiKey, setRetellApiKey,
   setKimiApiKey, setKimiBaseUrl,
   setXaiApiKey, setXaiBaseUrl, setXaiModel,
+  setMimoApiKey, setMimoBaseUrl, setMimoModel,
   setOllamaUrl, setOllamaApiKey, setJarvisProvider, setJarvisModel, setJarvisOllamaModel,
   setOpaDispatchUrl, setOpaApiKey,
   setElevenLabsApiKey, setElevenLabsVoiceId, setElevenLabsModel,
@@ -78,6 +79,9 @@ type Bindings = {
   XAI_API_KEY?: string;
   XAI_BASE_URL?: string;
   XAI_MODEL?: string;
+  MIMO_API_KEY?: string;
+  MIMO_BASE_URL?: string;
+  MIMO_MODEL?: string;
   KIMI_API_KEY?: string;
   KIMI_BASE_URL?: string;
   OPENAI_API_KEY?: string;
@@ -126,6 +130,9 @@ app.use("*", async (c, next) => {
   if (c.env?.XAI_API_KEY) setXaiApiKey(c.env.XAI_API_KEY);
   if (c.env?.XAI_BASE_URL) setXaiBaseUrl(c.env.XAI_BASE_URL);
   if (c.env?.XAI_MODEL) setXaiModel(c.env.XAI_MODEL);
+  if (c.env?.MIMO_API_KEY) setMimoApiKey(c.env.MIMO_API_KEY);
+  if (c.env?.MIMO_BASE_URL) setMimoBaseUrl(c.env.MIMO_BASE_URL);
+  if (c.env?.MIMO_MODEL) setMimoModel(c.env.MIMO_MODEL);
   if (c.env?.KIMI_API_KEY) setKimiApiKey(c.env.KIMI_API_KEY);
   if (c.env?.KIMI_BASE_URL) setKimiBaseUrl(c.env.KIMI_BASE_URL);
   if (c.env?.OPENAI_API_KEY) setOpenAiApiKey(c.env.OPENAI_API_KEY);

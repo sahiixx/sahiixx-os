@@ -352,6 +352,7 @@ async function* streamChat(provider: string, messages: JarvisMessage[]): AsyncGe
 
 function providerLabel(p: string): string {
   switch (p) {
+    case "mimo": return "MiMo";
     case "xai": return "Grok (xAI)";
     case "kimi": return "Kimi";
     case "openrouter": return "OpenRouter";
@@ -366,6 +367,7 @@ function buildProviderChain(primary: string): string[] {
   const out: string[] = [];
   const add = (p: string) => { if (!out.includes(p)) out.push(p); };
   add(primary);
+  if (env.mimoApiKey) add("mimo");
   if (env.xaiApiKey) add("xai");
   if (env.kimiApiKey) add("kimi");
   if (env.openRouterApiKey) add("openrouter");
@@ -378,6 +380,9 @@ function buildProviderChain(primary: string): string[] {
 
 async function* streamOneProvider(provider: string, messages: JarvisMessage[]): AsyncGenerator<Chunk> {
   switch (provider) {
+    case "mimo":
+      yield* mimoStream(messages);
+      return;
     case "xai":
       yield* xaiStream(messages);
       return;
@@ -500,6 +505,23 @@ async function* xaiStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
     extraHeaders: {},
     messages,
     label: "Grok (xAI)",
+  });
+}
+
+async function* mimoStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
+  // Xiaomi MiMo Open Platform — OpenAI-compatible Chat Completions.
+  // Auth: Authorization Bearer OR api-key header (docs: mimo.mi.com).
+  // Models: mimo-v2.5-pro | mimo-v2.5 | mimo-v2.5-flash (V2 series deprecated).
+  // Disable thinking by default so spoken replies stay clean (reasoning still
+  // surfaces if the model emits reasoning_content via openAICompatibleStream).
+  const base = env.mimoBaseUrl.replace(/\/$/, "");
+  yield* openAICompatibleStream({
+    url: `${base}/chat/completions`,
+    key: env.mimoApiKey,
+    model: env.jarvisModel || env.mimoModel,
+    extraHeaders: env.mimoApiKey ? { "api-key": env.mimoApiKey } : {},
+    messages,
+    label: "MiMo",
   });
 }
 
