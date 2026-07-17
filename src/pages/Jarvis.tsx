@@ -18,6 +18,10 @@ interface Turn {
   id: string;
   user: string;
   assistant: string;
+  // Live reasoning-model chain-of-thought (glm-5.2 / kimi-k2 / deepseek-r1 …).
+  // Shown dimmed while streaming so the user sees Jarvis is reasoning, not
+  // frozen; collapsed/hidden once the final `content` answer arrives.
+  thinking?: string;
   tools: ToolStep[];
   screens: ScreenShot[];
   done: boolean;
@@ -214,6 +218,12 @@ export default function Jarvis() {
       onToken: (tok) => {
         setStatus("speaking");
         setTurns((t) => { const c = [...t]; const l = c.find((x) => x.id === turn.id); if (l && !l.done) l.assistant += tok; return c; });
+      },
+      onThinking: (chunk) => {
+        // Keep the orb in "thinking" while the model reasons, and surface the
+        // chain-of-thought live (dimmed) so the silence isn't mistaken for a hang.
+        setStatus((s) => (s === "thinking" ? "thinking" : s === "idle" ? "thinking" : s));
+        setTurns((t) => { const c = [...t]; const l = c.find((x) => x.id === turn.id); if (l && !l.done) (l.thinking = (l.thinking || "") + chunk); return c; });
       },
       onToolCall: (name, args) => {
         setStatus("acting");
@@ -542,6 +552,15 @@ export default function Jarvis() {
 
               {/* tools */}
               {t.tools.map((tool, i) => <ToolCard key={i} tool={tool} />)}
+
+              {/* thinking (live reasoning, dimmed; hidden once the spoken answer arrives) */}
+              {t.thinking && !t.assistant && (
+                <div className="flex justify-start">
+                  <div className="border-l-2 border-text-dim/40 bg-surface/40 rounded-r-lg px-3 py-2 max-w-[85%] font-mono text-xs text-text-dim italic overflow-hidden">
+                    <span className="opacity-70">thinking… </span>{t.thinking.slice(-420)}
+                  </div>
+                </div>
+              )}
 
               {/* screens */}
               {t.screens.length > 0 && (

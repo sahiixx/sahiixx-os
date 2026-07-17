@@ -35,6 +35,14 @@ export type PendingKind = "service" | "os" | "shell";
 /** SSE event shape emitted by the stream handler. */
 export type SSEEvent =
   | { event: "token"; data: string }
+  // Reasoning-model "thinking" delta (Ollama `message.thinking`, OpenAI/Kimi
+  // `delta.reasoning_content`). Streamed live so the UI can show Jarvis is
+  // reasoning (not frozen) during the silent pre-answer phase reasoning models
+  // spend in `thinking` before emitting `content`. NOT spoken — only `token`
+  // goes to TTS. When a reasoning model leaves `content` empty at `done`,
+  // runTurn falls back to the tail of the accumulated thinking as the spoken
+  // answer (mirrors ollamaComplete in api/lib/llm.ts).
+  | { event: "thinking"; data: string }
   | { event: "tool_call"; data: { name: string; args: Record<string, unknown> } }
   | { event: "tool_result"; data: { name: string; result: string } }
   | { event: "audio"; data: { seq: number; mime: string; base64: string } }

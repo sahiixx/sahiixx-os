@@ -7,6 +7,8 @@ import { getToken } from "@/lib/auth";
 
 export interface JarvisStreamHandlers {
   onToken?: (token: string) => void;
+  /** Live reasoning-model chain-of-thought (shown in the UI, NOT spoken). */
+  onThinking?: (chunk: string) => void;
   onToolCall?: (name: string, args: Record<string, unknown>) => void;
   onToolResult?: (name: string, result: string) => void;
   onAudio?: (seq: number, mime: string, base64: string) => void;
@@ -140,6 +142,9 @@ function dispatchFrame(frame: string, h: JarvisStreamHandlers) {
   switch (event) {
     case "token":
       h.onToken?.(data);
+      break;
+    case "thinking":
+      h.onThinking?.(data);
       break;
     case "tool_call": {
       try { const j = JSON.parse(data); h.onToolCall?.(j.name, j.args); } catch {}

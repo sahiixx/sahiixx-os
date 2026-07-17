@@ -44,6 +44,10 @@ const TOOL_NAMES = new Set(TOOLS.map((t) => t.function.name));
 /** One normalized chunk from either provider's stream. */
 interface Chunk {
   content: string | null;
+  // Reasoning-model thinking delta (Ollama `message.thinking`, OpenAI/Kimi
+  // `delta.reasoning_content`). Not spoken; surfaced live as a `thinking` SSE
+  // event and used as a spoken fallback if `content` is empty at `done`.
+  thinking?: string | null;
   toolCallsDelta: Array<{ index: number; id?: string; name?: string; argsStr?: string; argsObj?: Record<string, unknown> }> | null;
   finishReason: string | null;
 }
@@ -67,6 +71,7 @@ export async function* runTurn(messages: JarvisMessage[], session: JarvisSession
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     let content = "";
+    let thinking = ""; // reasoning-model chain-of-thought (shown live, not spoken)
     const accum = new Map<number, ToolCallAccum>();
     let finishReason: string | null = null;
 
@@ -75,6 +80,10 @@ export async function* runTurn(messages: JarvisMessage[], session: JarvisSession
         if (chunk.content) {
           content += chunk.content;
           yield { event: "token", data: chunk.content };
+        }
+        if (chunk.thinking) {
+          thinking += chunk.thinking;
+          yield { event: "thinking", data: chunk.thinking };
         }
         if (chunk.toolCallsDelta) {
           for (const d of chunk.toolCallsDelta) {
@@ -168,11 +177,27 @@ export async function* runTurn(messages: JarvisMessage[], session: JarvisSession
     }
 
     // No tool calls — turn is done.
-    yield { event: "turn_end", data: { content: content || "(no response)" } };
+    yield { event: "turn_end", data: { content: finalReply(content, thinking) } };
     return;
   }
 
   yield { event: "turn_end", data: { content: "(reached tool-call limit; stopping for safety)" } };
+}
+
+/** Build the spoken/displayed final reply. Reasoning models (glm-5.2,
+ *  kimi-k2-turbo, deepseek-r1, …) occasionally route the whole answer to
+ *  `thinking` and leave `content` empty — in that case fall back to the tail
+ *  of the thinking so Jarvis speaks an answer instead of "(no response)".
+ *  Mirrors ollamaComplete() in api/lib/llm.ts. The live thinking was already
+ *  streamed to the UI as `thinking` events; this is only the spoken fallback. */
+function finalReply(content: string, thinking: string): string {
+  if (content.trim()) return content;
+  const t = (thinking || "").trim();
+  if (!t) return "(no response)";
+  // The conclusion usually lives at the tail of the reasoning. Cap to the last
+  // ~600 chars so a long chain-of-thought never becomes a rambling TTS dump.
+  const tail = t.length > 600 ? t.slice(t.length - 600) : t;
+  return tail;
 }
 
 /** Parse a tool call the model emitted as raw JSON text. Accepts the common
@@ -278,7 +303,26 @@ function safeParseArgs(args: string): Record<string, unknown> {
 // ── Provider streaming ───────────────────────────────────────────────────────
 
 async function* streamChat(provider: string, messages: JarvisMessage[]): AsyncGenerator<Chunk> {
-  if (provider === "ollama") { yield* ollamaStream(messages); return; }
+  if (provider === "ollama") {
+    // Ollama may be LOCAL (localhost:11434, keyless) or CLOUD (https://ollama.com,
+    // Bearer key). Local runs directly. Cloud wraps the same pre-stream-failure
+    // fallback the openrouter/kimi paths use: on an expired key / billing / outage
+    // (401/403/5xx before any bytes flow), emit a spoken warning then retry against
+    // keyless local Ollama. In dev that recovers; on the Cloudflare edge (no local
+    // Ollama) the retry fails cleanly via runTurn's catch rather than hard-crashing
+    // with a raw "LLM stream failed: Ollama HTTP 401". Mid-stream errors (something
+    // already emitted) propagate untouched so output is never garbled.
+    if (!ollamaIsCloud()) { yield* ollamaStream(messages); return; }
+    let emitted = false;
+    try {
+      for await (const c of ollamaStream(messages)) { emitted = true; yield c; }
+    } catch (e) {
+      if (emitted) throw e;
+      yield { content: "[Ollama Cloud is unavailable — falling back to the local model. Check OLLAMA_API_KEY if this persists.] ", toolCallsDelta: null, finishReason: null };
+      yield* ollamaStream(messages, { forceLocal: true });
+    }
+    return;
+  }
   // Cloud providers (openrouter / kimi) with a graceful fallback to the local
   // Ollama model on a pre-stream HTTP failure, so Jarvis never dies hard if a
   // cloud key/policy/account is misconfigured (e.g. OpenRouter's data-policy
@@ -371,6 +415,10 @@ async function* openAICompatibleStream(opts: {
       : null;
     yield {
       content: typeof delta.content === "string" && delta.content ? delta.content : null,
+      // Kimi (and OpenRouter reasoning models) emit `reasoning_content` alongside
+      // `content`; surface it as `thinking` so the UI shows live reasoning and
+      // runTurn can fall back to it if `content` is empty (see finalReply).
+      thinking: typeof delta.reasoning_content === "string" && delta.reasoning_content ? delta.reasoning_content : null,
       toolCallsDelta,
       finishReason: choice.finish_reason ?? null,
     };
@@ -402,15 +450,36 @@ async function* kimiStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
   });
 }
 
-async function* ollamaStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
-  const res = await fetch(`${env.ollamaUrl}/api/chat`, {
+function ollamaIsCloud(): boolean {
+  const url = env.ollamaUrl ?? "";
+  // Cloud = a key is set AND the URL is not the local endpoint. The same code path
+  // serves both; the Bearer header below is what distinguishes them on the wire.
+  return !!env.ollamaApiKey && !url.includes("localhost") && !url.includes("127.0.0.1");
+}
+
+async function* ollamaStream(messages: JarvisMessage[], opts?: { forceLocal?: boolean }): AsyncGenerator<Chunk> {
+  // Ollama Cloud (https://ollama.com) requires a Bearer key; local Ollama
+  // (localhost:11434) does not. Attach the header only when a key is set (and
+  // not when a cloud failure forced us back to keyless local), so one code path
+  // serves both — switching local↔cloud is just an env change. Mirrors
+  // ollamaComplete() in api/lib/llm.ts; WITHOUT this header Ollama Cloud 401s on
+  // every request (the regression that silently broke Jarvis-on-cloud).
+  const url = opts?.forceLocal ? "http://localhost:11434" : env.ollamaUrl;
+  const model = opts?.forceLocal ? "llama3.2:3b" : env.jarvisOllamaModel;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (env.ollamaApiKey && !opts?.forceLocal) headers.Authorization = `Bearer ${env.ollamaApiKey}`;
+  const res = await fetch(`${url}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: env.jarvisOllamaModel, messages: toProviderMessages("ollama", messages), stream: true, tools: TOOLS }),
+    headers,
+    body: JSON.stringify({ model, messages: toProviderMessages("ollama", messages), stream: true, tools: TOOLS }),
   });
   if (!res.ok || !res.body) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Ollama HTTP ${res.status} at ${env.ollamaUrl}: ${detail.slice(0, 300)}` + (res.status === 404 ? " — is Ollama running on :11434?" : ""));
+    const isCloud = !opts?.forceLocal && ollamaIsCloud();
+    const hint = res.status === 404 && !isCloud ? " — is Ollama running on :11434?"
+      : res.status === 401 && isCloud ? " — OLLAMA_API_KEY is missing/expired; check ollama.com/settings/keys"
+      : "";
+    throw new Error(`Ollama HTTP ${res.status} at ${url}: ${detail.slice(0, 300)}${hint}`);
   }
   for await (const line of readLines(res.body)) {
     if (!line.trim()) continue;
@@ -429,6 +498,7 @@ async function* ollamaStream(messages: JarvisMessage[]): AsyncGenerator<Chunk> {
       : null;
     yield {
       content: typeof msg.content === "string" && msg.content ? msg.content : null,
+      thinking: typeof msg.thinking === "string" && msg.thinking ? msg.thinking : null,
       toolCallsDelta: toolCalls,
       finishReason: json.done ? (toolCalls ? "tool_calls" : "stop") : null,
     };
