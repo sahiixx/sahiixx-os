@@ -124,8 +124,9 @@ app.use("*", async (c, next) => {
   if (c.env?.OPENAI_API_KEY) setOpenAiApiKey(c.env.OPENAI_API_KEY);
   if (c.env?.ANTHROPIC_API_KEY) setAnthropicApiKey(c.env.ANTHROPIC_API_KEY);
   if (c.env?.RETELL_API_KEY) setRetellApiKey(c.env.RETELL_API_KEY);
-  if (c.env?.OLLAMA_URL) setOllamaUrl(c.env.OLLAMA_URL);
-  if (c.env?.OLLAMA_API_KEY) setOllamaApiKey(c.env.OLLAMA_API_KEY);
+  // Always set (cleaned) so BOM/whitespace from secret put cannot poison fetch URLs.
+  setOllamaUrl(c.env?.OLLAMA_URL ?? "");
+  setOllamaApiKey(c.env?.OLLAMA_API_KEY ?? "");
   if (c.env?.JARVIS_PROVIDER) setJarvisProvider(c.env.JARVIS_PROVIDER);
   if (c.env?.JARVIS_MODEL) setJarvisModel(c.env.JARVIS_MODEL);
   if (c.env?.JARVIS_OLLAMA_MODEL) setJarvisOllamaModel(c.env.JARVIS_OLLAMA_MODEL);

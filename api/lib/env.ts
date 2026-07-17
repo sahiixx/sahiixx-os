@@ -6,8 +6,20 @@ const DEV_AUTH_SECRET = "sahiixx-dev-secret-change-me"; // fallback so `npm run 
 const DEV_ADMIN_EMAIL = "admin@sahiixx.os";
 const DEV_ADMIN_PASSWORD = "sahiixx";
 
+/** Strip BOM / zero-width / surrounding whitespace from secret/env strings.
+ *  PowerShell `Set-Content -Encoding UTF8` and some secret-put paths inject
+ *  U+FEFF, which breaks `new URL()` / fetch ("Invalid URL: \uFEFFhttps://…"). */
+export function cleanEnv(v: unknown): string | undefined {
+  if (v == null) return undefined;
+  const s = String(v)
+    .replace(/^\uFEFF+/, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
+    .trim();
+  return s.length ? s : undefined;
+}
+
 function g(key: string): string | undefined {
-  return (globalThis as any)[key] ?? process.env[key];
+  return cleanEnv((globalThis as any)[key]) ?? cleanEnv(process.env[key]);
 }
 
 let authSecretWarned = false;
@@ -169,8 +181,8 @@ export function setKimiBaseUrl(u: string) { (globalThis as any).KIMI_BASE_URL = 
 export function setOpenAiApiKey(k: string) { (globalThis as any).OPENAI_API_KEY = k; }
 export function setAnthropicApiKey(k: string) { (globalThis as any).ANTHROPIC_API_KEY = k; }
 export function setRetellApiKey(k: string) { (globalThis as any).RETELL_API_KEY = k; }
-export function setOllamaUrl(u: string) { (globalThis as any).OLLAMA_URL = u; }
-export function setOllamaApiKey(k: string) { (globalThis as any).OLLAMA_API_KEY = k; }
+export function setOllamaUrl(u: string) { (globalThis as any).OLLAMA_URL = cleanEnv(u) ?? ""; }
+export function setOllamaApiKey(k: string) { (globalThis as any).OLLAMA_API_KEY = cleanEnv(k) ?? ""; }
 export function setElevenLabsApiKey(k: string) { (globalThis as any).ELEVENLABS_API_KEY = k; }
 export function setElevenLabsVoiceId(v: string) { (globalThis as any).ELEVENLABS_VOICE_ID = v; }
 export function setElevenLabsModel(m: string) { (globalThis as any).ELEVENLABS_MODEL = m; }
@@ -181,5 +193,5 @@ export function setJarvisModel(m: string) { (globalThis as any).JARVIS_MODEL = m
 export function setJarvisOllamaModel(m: string) { (globalThis as any).JARVIS_OLLAMA_MODEL = m; }
 export function setOpaDispatchUrl(u: string) { (globalThis as any).OPA_DISPATCH_URL = u; }
 export function setOpaApiKey(k: string) { (globalThis as any).OPA_API_KEY = k; }
-export function setEstateApiUrl(u: string) { (globalThis as any).ESTATE_API_URL = u; }
-export function setEstateApiKey(k: string) { (globalThis as any).ESTATE_API_KEY = k; }
+export function setEstateApiUrl(u: string) { (globalThis as any).ESTATE_API_URL = cleanEnv(u) ?? ""; }
+export function setEstateApiKey(k: string) { (globalThis as any).ESTATE_API_KEY = cleanEnv(k) ?? ""; }
