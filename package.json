@@ -13,7 +13,11 @@
     "check": "tsc -b",
     "smoke:prod": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-prod.ps1",
     "tasks:real": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/real-world-tasks.ps1",
-    "tunnel:estate": "wsl -d Ubuntu-24.04 -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/start-estate-tunnel.sh",
+    "tunnel:estate": "wsl -d Ubuntu-24.04 -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/install-named-estate-tunnel.sh",
+    "tunnel:estate:quick": "wsl -d Ubuntu-24.04 -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/start-estate-public-quick.sh",
+    "tunnel:estate:heal": "wsl -d Ubuntu-24.04 -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/heal-estate-public.sh",
+    "tunnel:estate:sync": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/sync-estate-secret.ps1",
+    "tunnel:estate:dns": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-estate-dns.ps1",
     "mcp:knowledge": "tsx mcp/knowledge/src/index.ts"
   },
   "dependencies": {

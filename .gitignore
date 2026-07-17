@@ -33,3 +33,15 @@ opa-api-startup.log.err
 scripts/estate-tunnel.pid
 scripts/estate-tunnel.url
 scripts/estate-tunnel.log
+
+# Named tunnel credentials (never commit)
+scripts/.estate-tunnel-token
+scripts/estate-tunnel.url
+scripts/estate-tunnel.pid
+scripts/estate-tunnel.log
+
+
+scripts/estate-public-heal.log
+scripts/estate-public-quick.log
+scripts/estate-public-quick.pid
+

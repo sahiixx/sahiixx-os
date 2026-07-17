@@ -51,13 +51,26 @@ Full-stack cyberpunk operating system — modules, real Neon Postgres, Cloudflar
 
 ### Live NEXUS estate bridge
 - Local: defaults to `http://127.0.0.1:3001` (WSL `estate-api`)
-- Prod: Cloudflare quick tunnel → Pages secret `ESTATE_API_URL`
+- Prod: **named Cloudflare Tunnel** `sahiix-estate` (stable UUID; survives restarts)
+  - Tunnel ID: `4d78e2cb-36d3-4785-9e7d-a84d1181f651`
+  - CNAME target: `4d78e2cb-36d3-4785-9e7d-a84d1181f651.cfargotunnel.com`
+  - Connector (WSL user systemd): `npm run tunnel:estate`
+  - Public hostname (requires a zone on this CF account):
+    ```powershell
+    # once you have a domain on Cloudflare (0 zones today):
+    npm run tunnel:estate:dns -- -Hostname estate.YOURDOMAIN.com
+    # puts DNS CNAME + tunnel ingress + Pages secret ESTATE_API_URL
+    ```
+  - Interim without a zone (auto-heal every 10 min):
+    ```bash
+    npm run tunnel:estate:quick   # start trycloudflare public bridge
+    npm run tunnel:estate:sync    # put ESTATE_API_URL + probe prod (needs redeploy if secret was stale)
+    npm run tunnel:estate:heal    # restart bridge if dead
+    ```
+    WSL timer `estate-public-heal.timer` runs heal every 10 min. **Pages secrets are snapshotted per deploy** — after syncing a new URL, run `npx wrangler pages deploy dist/public --project-name=sahiixx-os` if prod still shows the old tunnel host.
   ```bash
-  # WSL: expose estate (requires cloudflared in ~/.local/bin)
   npm run tunnel:estate
-  # copy printed https://*.trycloudflare.com URL
-  echo "https://….trycloudflare.com" | npx wrangler pages secret put ESTATE_API_URL --project-name=sahiixx-os
-  npm run build && npx wrangler pages deploy dist/public --project-name=sahiixx-os
+  # after DNS is wired:
   npm run smoke:prod
   ```
 - UI: Nexus page → **LIVE ESTATE LEADS** + Import → Deal

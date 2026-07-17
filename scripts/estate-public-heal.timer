@@ -1,0 +1,11 @@
+[Unit]
+Description=Every 10 min: heal estate public tunnel URL
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+Persistent=true
+Unit=estate-public-heal.service
+
+[Install]
+WantedBy=timers.target

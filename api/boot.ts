@@ -136,8 +136,9 @@ app.use("*", async (c, next) => {
   if (c.env?.ELEVENLABS_MODEL) setElevenLabsModel(c.env.ELEVENLABS_MODEL);
   if (c.env?.POSTIZ_API_URL) setPostizApiUrl(c.env.POSTIZ_API_URL);
   if (c.env?.POSTIZ_API_KEY) setPostizApiKey(c.env.POSTIZ_API_KEY);
-  if (c.env?.ESTATE_API_URL) setEstateApiUrl(c.env.ESTATE_API_URL);
-  if (c.env?.ESTATE_API_KEY) setEstateApiKey(c.env.ESTATE_API_KEY);
+  // Always overwrite — never leave a stale globalThis value from a prior isolate request.
+  setEstateApiUrl(c.env?.ESTATE_API_URL ?? "");
+  setEstateApiKey(c.env?.ESTATE_API_KEY ?? "");
   inc("requests_total");
   await next();
 });

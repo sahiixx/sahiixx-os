@@ -1,0 +1,8 @@
+[Unit]
+Description=Heal estate public trycloudflare bridge + optional Pages secret sync
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=SYNC_PAGES=1
+ExecStart=/bin/bash /mnt/c/Users/sahii/sahiixx-os/scripts/heal-estate-public.sh
