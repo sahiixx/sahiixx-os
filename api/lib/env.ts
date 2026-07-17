@@ -70,8 +70,9 @@ export const env = {
     return g("MIMO_BASE_URL") ?? process.env.MIMO_BASE_URL ?? "https://api.xiaomimimo.com/v1";
   },
   get mimoModel() {
-    // V2.5 series (V2 deprecated Jun 2026). Prefer pro for quality; flash for latency.
-    return g("MIMO_MODEL") ?? process.env.MIMO_MODEL ?? "mimo-v2.5-pro";
+    // Free/public-beta path prefers flash; pro is paid. Official ids: mimo-v2.5-flash, mimo-v2.5-pro.
+    // OpenRouter free: xiaomi/mimo-v2-flash:free (when JARVIS_PROVIDER=openrouter).
+    return g("MIMO_MODEL") ?? process.env.MIMO_MODEL ?? "mimo-v2.5-flash";
   },
   get kimiApiKey() {
     // "sk-kimi-…" keys from the Kimi Coding platform (platform.kimi.ai / kimi.com/code).

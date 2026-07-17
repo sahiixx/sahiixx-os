@@ -561,8 +561,10 @@ async function* workersAiStream(messages: JarvisMessage[]): AsyncGenerator<Chunk
     return { role: m.role as "system" | "user" | "assistant", content: m.content ?? "" };
   });
 
-  // Same model family as system.workersAiProbe (post-deprecation catalog).
-  const model = "@cf/zai-org/glm-4.7-flash";
+  // Edge free path. Prefer JARVIS_MODEL if it's a Workers AI model id (@cf/...),
+  // else default to the same catalog model as system.workersAiProbe.
+  const preferred = (env.jarvisModel || "").trim();
+  const model = preferred.startsWith("@cf/") ? preferred : "@cf/zai-org/glm-4.7-flash";
   let out: unknown;
   try {
     out = await ai.run(model, { messages: msgs, stream: true, max_tokens: 1024 });
