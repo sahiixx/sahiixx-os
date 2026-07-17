@@ -18,6 +18,10 @@
     "tunnel:estate:heal": "wsl -d Ubuntu-24.04 -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/heal-estate-public.sh",
     "tunnel:estate:sync": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/sync-estate-secret.ps1",
     "tunnel:estate:dns": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-estate-dns.ps1",
+    "data:real": "node scripts/real-data-ops.mjs --all",
+    "data:purge-synthetic": "node scripts/real-data-ops.mjs --purge-synthetic",
+    "data:import-estate": "node scripts/real-data-ops.mjs --import-estate",
+    "data:import-leads": "node scripts/real-data-ops.mjs --import-leads",
     "mcp:knowledge": "tsx mcp/knowledge/src/index.ts"
   },
   "dependencies": {
