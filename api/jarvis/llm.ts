@@ -362,19 +362,21 @@ function providerLabel(p: string): string {
   }
 }
 
-/** Ordered fallback list starting with the requested provider. */
+/** Ordered fallback list starting with the requested provider.
+ *  Free Workers AI is inserted ASAP after primary so paid 403/429 (Kimi/xAI/
+ *  OpenRouter) never block chat on the edge. */
 function buildProviderChain(primary: string): string[] {
   const out: string[] = [];
   const add = (p: string) => { if (!out.includes(p)) out.push(p); };
   add(primary);
+  // Free edge path immediately after primary (no-op if primary is already workers-ai)
+  if (onEdge() && workersAiAvailable()) add("workers-ai");
   if (env.mimoApiKey) add("mimo");
   if (env.xaiApiKey) add("xai");
   if (env.kimiApiKey) add("kimi");
   if (env.openRouterApiKey) add("openrouter");
   if (env.ollamaUrl) add("ollama");
-  // Edge: Workers AI binding. Local dev: keyless localhost Ollama (only off-edge).
-  if (onEdge() && workersAiAvailable()) add("workers-ai");
-  else if (!onEdge()) add("ollama-local");
+  if (!onEdge()) add("ollama-local");
   return out;
 }
 
