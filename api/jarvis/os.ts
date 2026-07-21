@@ -22,6 +22,83 @@ import { isAbsolute, resolve, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { JarvisSession, SSEEvent, ToolDef, ToolExecResult } from "./types";
 import { registerPendingOp } from "./approvals";
+import { env } from "../lib/env";
+
+/** True when PowerShell cannot run here (Cloudflare Pages/Workers / unenv), or agent URL is configured. */
+function needsOsAgent(): boolean {
+  // Prefer the local Windows agent whenever it is configured — works on Pages and as a local override.
+  if ((env.jarvisOsAgentUrl || "").trim()) return true;
+  return !!(
+    (globalThis as any).CF_PAGES ||
+    process.env.CF_PAGES ||
+    process.env.CF_PAGES_URL ||
+    process.platform !== "win32"
+  );
+}
+
+async function proxyOsAgent(
+  name: string,
+  args: Record<string, unknown>,
+  session: JarvisSession,
+): Promise<ToolExecResult> {
+  const base = (env.jarvisOsAgentUrl || "").replace(/\/$/, "");
+  if (!base) {
+    return {
+      result:
+        "Error: OS tools cannot run on Cloudflare Workers. Start the local Windows agent " +
+        "(`npm run jarvis:os-agent`) and set JARVIS_OS_AGENT_URL (+ JARVIS_OS_TOKEN) so " +
+        "Jarvis can control your PC. Then retry.",
+    };
+  }
+  const token = env.jarvisOsToken || "";
+  try {
+    const res = await fetch(`${base}/v1/tool`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
+        "X-Jarvis-Os-Token": token,
+      },
+      body: JSON.stringify({
+        name,
+        args,
+        flags: {
+          allowOsControl: !!session.allowOsControl,
+          allowRawShell: !!session.allowRawShell,
+        },
+      }),
+    });
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return { result: `Error: OS agent bad response HTTP ${res.status}: ${text.slice(0, 300)}` };
+    }
+    if (!res.ok) {
+      return { result: `Error: OS agent HTTP ${res.status}: ${json?.error || json?.result || text.slice(0, 300)}` };
+    }
+    const out: ToolExecResult = { result: String(json.result ?? "") };
+    if (json.imageBase64) {
+      const event: SSEEvent = {
+        event: "screen",
+        data: {
+          seq: 0,
+          mime: json.mimeType || "image/png",
+          base64: json.imageBase64,
+          width: json.width || 0,
+          height: json.height || 0,
+        },
+      };
+      out.events = [event];
+    }
+    return out;
+  } catch (e: any) {
+    return {
+      result: `Error: OS agent unreachable at ${base} (${e?.message ?? e}). Is jarvis-os-agent running on Windows?`,
+    };
+  }
+}
 
 const TESSERACT = "C:\\Program Files\\Tesseract-OCR\\tesseract.exe";
 const SRC_DIR = process.cwd(); // sahiixx-os project root — protect from file tools
@@ -346,6 +423,10 @@ export const OS_TOOLS: ToolDef[] = [
 
 // ── Dispatcher ──────────────────────────────────────────────────────────────
 export async function executeOsTool(name: string, args: Record<string, unknown>, session: JarvisSession): Promise<ToolExecResult> {
+  // Cloudflare Pages/Workers cannot run PowerShell — proxy to local Windows agent.
+  if (needsOsAgent()) {
+    return await proxyOsAgent(name, args, session);
+  }
   try {
     switch (name) {
       // Tier 1 — read-only, always run

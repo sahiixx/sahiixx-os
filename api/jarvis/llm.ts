@@ -206,15 +206,37 @@ function finalReply(content: string, thinking: string): string {
  *  content to be a single JSON object, so a sentence that merely contains JSON
  *  is left alone (handled by the prose regexes below if applicable). */
 function parseTextToolCall(content: string): { name: string; args: Record<string, unknown> } | null {
-  const s = content.trim();
+  let s = content.trim();
+  // Strip markdown fences the model sometimes wraps around JSON.
+  s = s.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  // If content is prose + a JSON blob, take the first balanced object.
+  if (!s.startsWith("{")) {
+    const i = s.indexOf("{");
+    const j = s.lastIndexOf("}");
+    if (i >= 0 && j > i) s = s.slice(i, j + 1);
+  }
   if (!s.startsWith("{") || !s.endsWith("}")) return null;
   let obj: any;
   try { obj = JSON.parse(s); } catch { return null; }
   if (!obj || typeof obj !== "object") return null;
-  const name = typeof obj.name === "string" ? obj.name : null;
+  // Accept common aliases: name | tool | path | action (when action is a tool id)
+  let name =
+    (typeof obj.name === "string" && obj.name) ||
+    (typeof obj.tool === "string" && obj.tool) ||
+    (typeof obj.path === "string" && obj.path) ||
+    null;
+  if (!name && typeof obj.action === "string" && TOOL_NAMES.has(obj.action)) name = obj.action;
+  // Normalize aliases models invent
+  if (name === "system_status" || name === "status") name = "sys_status";
+  if (name === "screenshot" || name === "capture_screen" || name === "screen") name = "screen_capture";
   if (!name || !TOOL_NAMES.has(name)) return null;
   const args = obj.parameters ?? obj.arguments ?? obj.args ?? {};
-  return { name, args: args && typeof args === "object" ? (args as Record<string, unknown>) : {} };
+  // Drop non-arg keys if the model stuffed path/action into the root
+  const cleaned =
+    args && typeof args === "object" && !Array.isArray(args)
+      ? (args as Record<string, unknown>)
+      : {};
+  return { name, args: cleaned };
 }
 
 /**
@@ -244,9 +266,9 @@ export function intentFallback(
   if (jsonCall) return { kind: "call", call: { id: newId(), name: jsonCall.name, args: jsonCall.args } };
 
   // Read-only perception: synthesize the call directly. These are always safe.
-  if (/\b(screenshot|screen ?shot|capture the screen|what'?s on (my )?screen|what'?s on screen|read the screen)\b/.test(t))
+  if (/\b(screenshot|screen ?shot|screen_capture|screen capture|capture the screen|what'?s on (my )?screen|what'?s on screen|read the screen|look at (my )?screen)\b/.test(t))
     return { kind: "call", call: { id: newId(), name: "screen_capture", args: {} } };
-  if (/\b(system status|how (is|are) (the )?(system|computer|machine) (running|doing)|what'?s (the )?status|how much (ram|memory|disk))\b/.test(t))
+  if (/\b(system status|sys_status|how (is|are) (the )?(system|computer|machine) (running|doing)|what'?s (the )?status|how much (ram|memory|disk))\b/.test(t))
     return { kind: "call", call: { id: newId(), name: "sys_status", args: {} } };
   if (/\b(what'?s running|list (the )?processes|what processes|running apps|list windows|open windows)\b/.test(t))
     return { kind: "call", call: { id: newId(), name: "process_list", args: {} } };
@@ -631,8 +653,10 @@ async function* ollamaStream(messages: JarvisMessage[], opts?: { forceLocal?: bo
     const detail = await res.text().catch(() => "");
     const isCloud = !opts?.forceLocal && ollamaIsCloud();
     const hint = res.status === 404 && !isCloud ? " — is Ollama running on :11434?"
-      : res.status === 401 && isCloud ? " — OLLAMA_API_KEY is missing/expired; check ollama.com/settings/keys"
-      : res.status === 429 && isCloud ? " — Ollama Cloud rate limit; will try next provider"
+      : res.status === 401 && isCloud ? " — OLLAMA_API_KEY is missing/expired; create a new key at ollama.com/settings/keys"
+      : res.status === 403 && isCloud ? " — Ollama Cloud rejected the key (billing/plan); check ollama.com/settings"
+      : res.status === 429 && isCloud
+        ? " — Ollama Cloud free-tier session/weekly GPU quota exhausted (resets ~every 5h / weekly). Falling through to next provider."
       : "";
     throw new Error(`Ollama HTTP ${res.status} at ${url}: ${detail.slice(0, 300)}${hint}`);
   }

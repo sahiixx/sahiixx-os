@@ -56,11 +56,11 @@ export function routeCommand(message: string, _session: JarvisSession): RouteRes
   if (LOOKS_LIKE_LLM.test(m)) return { kind: "passthrough" };
 
   // ── Read-only perception ────────────────────────────────────────────────
-  if (/\b(what('?s| is)|whats) on (my |the )?screen\b|read (me )?the screen\b/.test(m))
+  if (/\b(what('?s| is)|whats) on (my |the )?screen\b|read (me )?the screen\b|look at (my |the )?screen\b|see (my |the )?screen\b/.test(m))
     return { kind: "direct", calls: [{ name: "screen_capture", args: {} }], canned: "Looking at the screen now." };
-  if (/\b(take a |grab a |capture a )?(screenshot|screen ?shot)\b|capture (the )?screen\b/.test(m))
+  if (/\b(take a |grab a |capture a |run |do )?(screenshot|screen ?shot|screen_capture)\b|capture (the )?screen\b|screen capture\b/.test(m))
     return { kind: "direct", calls: [{ name: "screen_capture", args: {} }], canned: "Screenshot captured." };
-  if (/\b(system status|what('?s| is) (the )?status|how('?s| is) (the )?(system|computer|machine|pc) (running|doing|health)|check (the )?system|how much (ram|memory|disk))\b/.test(m))
+  if (/\b(system status|sys_status|what('?s| is) (the )?status|how('?s| is) (the )?(system|computer|machine|pc) (running|doing|health)|check (the )?system|how much (ram|memory|disk))\b/.test(m))
     return { kind: "direct", calls: [{ name: "sys_status", args: {} }], canned: "Here's the system status." };
   if (/\b(what('?s| is) running|list (the )?processes|show (the )?processes|running apps|what processes)\b/.test(m))
     return { kind: "direct", calls: [{ name: "process_list", args: {} }], canned: "Here are the top processes." };

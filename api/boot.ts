@@ -23,6 +23,7 @@ import {
   setElevenLabsApiKey, setElevenLabsVoiceId, setElevenLabsModel,
   setPostizApiUrl, setPostizApiKey,
   setEstateApiUrl, setEstateApiKey,
+  setJarvisOsAgentUrl, setJarvisOsToken,
 } from "./lib/env";
 import { testConnection, getDb, activeDatabaseMode } from "./queries/connection";
 import { agents } from "@db/schema";
@@ -104,6 +105,8 @@ type Bindings = {
   // Live NEXUS / sahiix-estate bridge
   ESTATE_API_URL?: string;
   ESTATE_API_KEY?: string;
+  JARVIS_OS_AGENT_URL?: string;
+  JARVIS_OS_TOKEN?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -154,6 +157,8 @@ app.use("*", async (c, next) => {
   // Always overwrite — never leave a stale globalThis value from a prior isolate request.
   setEstateApiUrl(c.env?.ESTATE_API_URL ?? "");
   setEstateApiKey(c.env?.ESTATE_API_KEY ?? "");
+  if (c.env?.JARVIS_OS_AGENT_URL) setJarvisOsAgentUrl(c.env.JARVIS_OS_AGENT_URL);
+  if (c.env?.JARVIS_OS_TOKEN) setJarvisOsToken(c.env.JARVIS_OS_TOKEN);
   inc("requests_total");
   await next();
 });

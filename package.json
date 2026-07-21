@@ -22,6 +22,8 @@
     "data:purge-synthetic": "node scripts/real-data-ops.mjs --purge-synthetic",
     "data:import-estate": "node scripts/real-data-ops.mjs --import-estate",
     "data:import-leads": "node scripts/real-data-ops.mjs --import-leads",
+    "jarvis:os-agent": "node scripts/jarvis-os-agent.mjs",
+    "jarvis:os-agent:tunnel": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-jarvis-os-tunnel.ps1",
     "mcp:knowledge": "tsx mcp/knowledge/src/index.ts"
   },
   "dependencies": {

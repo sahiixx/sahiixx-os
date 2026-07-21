@@ -1,0 +1,25 @@
+[Unit]
+Description=Sovereign Agents — pipeline-agent (uvicorn :8010)
+Documentation=file:///mnt/c/Users/sahii/sahiixx-os/scripts/pipeline-agent-go-live.md
+After=network.target
+
+[Service]
+Environment="PATH=/home/xx/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/mnt/c/Users/sahii/Documents/kimi/workspace/sovereign-agents"
+Environment="ESTATE_API_URL=http://127.0.0.1:3001"
+EnvironmentFile=%h/.cloudflared/pipeline-agent.env
+Type=simple
+WorkingDirectory=/mnt/c/Users/sahii/Documents/kimi/workspace/sovereign-agents
+# Reproduces the live launch command (captured from the running PID today):
+#   python3 -m uvicorn pipeline_agent.main:app --host 0.0.0.0 --port 8010
+# Bind tightened to 127.0.0.1 — the Cloudflare named tunnel is the public edge,
+# so there is no reason to also expose the raw endpoint on the WSL LAN.
+ExecStart=/usr/bin/python3.12 -m uvicorn pipeline_agent.main:app --host 127.0.0.1 --port 8010
+
+Restart=always
+RestartSec=5
+StandardOutput=append:%h/pipeline-agent.log
+StandardError=append:%h/pipeline-agent.log
+
+[Install]
+WantedBy=default.target

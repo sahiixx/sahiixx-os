@@ -180,6 +180,17 @@ export const env = {
   get estateApiKey() {
     return g("ESTATE_API_KEY") ?? process.env.ESTATE_API_KEY;
   },
+  /**
+   * Local Windows OS-control agent (screen/mouse/keyboard). Required on Cloudflare
+   * Pages — Workers cannot run PowerShell. Start: `npm run jarvis:os-agent`
+   * and expose via tunnel; set JARVIS_OS_AGENT_URL + JARVIS_OS_TOKEN secrets.
+   */
+  get jarvisOsAgentUrl() {
+    return g("JARVIS_OS_AGENT_URL") ?? process.env.JARVIS_OS_AGENT_URL ?? "";
+  },
+  get jarvisOsToken() {
+    return g("JARVIS_OS_TOKEN") ?? process.env.JARVIS_OS_TOKEN ?? "";
+  },
 };
 
 // Setters for Cloudflare Workers env injection (called from boot.ts middleware).
@@ -230,3 +241,5 @@ export function setOpaDispatchUrl(u: string) { (globalThis as any).OPA_DISPATCH_
 export function setOpaApiKey(k: string) { (globalThis as any).OPA_API_KEY = k; }
 export function setEstateApiUrl(u: string) { (globalThis as any).ESTATE_API_URL = cleanEnv(u) ?? ""; }
 export function setEstateApiKey(k: string) { (globalThis as any).ESTATE_API_KEY = cleanEnv(k) ?? ""; }
+export function setJarvisOsAgentUrl(u: string) { (globalThis as any).JARVIS_OS_AGENT_URL = cleanEnv(u) ?? ""; }
+export function setJarvisOsToken(k: string) { (globalThis as any).JARVIS_OS_TOKEN = cleanEnv(k) ?? ""; }

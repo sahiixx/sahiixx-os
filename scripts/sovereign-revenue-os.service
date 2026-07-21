@@ -1,0 +1,21 @@
+[Unit]
+Description=Sovereign Revenue OS — full docker stack (Traefik :80 → app :8000 internal)
+Documentation=file:///mnt/c/Users/sahii/sahiixx-os/scripts/sovereign-revenue-os-go-live.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment="PATH=/home/xx/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/xx/sovereign-revenue-os
+# Wait for the Docker daemon to be reachable (it may lag the linger session at boot)
+ExecStartPre=/bin/bash -c 'for i in $(seq 1 30); do docker info >/dev/null 2>&1 && exit 0; sleep 2; done; exit 1'
+# `up -d` (no --build) — image is built once; on boot just bring containers back.
+# --env-file holds the generated secrets (chmod 600, never commit).
+ExecStart=/usr/bin/docker compose -f full_infra_docker_compose.yml -f docker-compose.prod.yml -f docker-compose.override.yml --env-file .env.production up -d
+ExecStop=/usr/bin/docker compose -f full_infra_docker_compose.yml -f docker-compose.prod.yml -f docker-compose.override.yml --env-file .env.production down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

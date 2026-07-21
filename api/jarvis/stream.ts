@@ -48,6 +48,15 @@ export function registerJarvisRoutes(app: Hono<any>) {
     const voiceOverride = (body.voiceId ?? "").trim() || null;
 
     const session = getOrCreateSession(body.sessionId, user.email);
+    // User grants full device control in natural language (E2E on Windows).
+    if (/\b(all control|full control|os control|control (my )?(pc|device|windows|computer)|e2e|screen.?capture|you can (see|view|control))\b/i.test(message)) {
+      session.allowOsControl = true;
+      session.allowShell = true;
+      // Raw shell still requires explicit "raw shell" — keep safer default off unless asked.
+      if (/\b(raw shell|full shell|win_script|unrestricted)\b/i.test(message)) {
+        session.allowRawShell = true;
+      }
+    }
     session.messages.push({ role: "user", content: message });
     session.lastActiveAt = Date.now();
     sweepStaleSessions();
