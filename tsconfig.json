@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -15,10 +15,12 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@sahiixx-os/*": ["packages/*/src"],
-      "@db/*": ["packages/db/src/*"],
-      "@/*": ["apps/web/src/*"]
+      "@/*": ["src/*"],
+      "@db/*": ["db/*"],
+      "@db": ["db/schema"],
+      "@contracts/*": ["contracts/*"]
     }
   },
-  "exclude": ["node_modules", "dist", ".turbo"]
+  "include": ["src", "api", "db"],
+  "exclude": ["node_modules", "dist", ".turbo", "apps", "packages", "**/*.mjs", "**/*.cjs"]
 }
