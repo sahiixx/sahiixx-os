@@ -108,6 +108,9 @@ type Bindings = {
   ESTATE_API_KEY?: string;
   JARVIS_OS_AGENT_URL?: string;
   JARVIS_OS_TOKEN?: string;
+  // Sovereign Revenue OS pipeline bridge (lead scoring/capture). Optional.
+  REVENUE_API_URL?: string;
+  REVENUE_API_KEY?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
