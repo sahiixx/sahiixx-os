@@ -3,20 +3,22 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "jsx": "react-jsx",
+    "lib": ["ES2022"],
     "strict": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@db/*": ["./db/*"],
-      "@contracts/*": ["./contracts/*"]
-    },
-    "baseUrl": "."
+      "@sahiixx-os/*": ["packages/*/src"],
+      "@db/*": ["packages/db/src/*"],
+      "@/*": ["apps/web/src/*"]
+    }
   },
-  "include": ["src/**/*", "api/**/*", "db/**/*", "mcp/**/*"]
+  "exclude": ["node_modules", "dist", ".turbo"]
 }
