@@ -22,6 +22,7 @@ import {
   setOpaDispatchUrl, setOpaApiKey,
   setElevenLabsApiKey, setElevenLabsVoiceId, setElevenLabsModel,
   setPostizApiUrl, setPostizApiKey,
+  setRevenueApiUrl, setRevenueApiKey,
   setEstateApiUrl, setEstateApiKey,
   setJarvisOsAgentUrl, setJarvisOsToken,
 } from "./lib/env";
@@ -149,7 +150,10 @@ app.use("*", async (c, next) => {
   if (c.env?.JARVIS_OLLAMA_MODEL) setJarvisOllamaModel(c.env.JARVIS_OLLAMA_MODEL);
   if (c.env?.OPA_DISPATCH_URL) setOpaDispatchUrl(c.env.OPA_DISPATCH_URL);
   if (c.env?.OPA_API_KEY) setOpaApiKey(c.env.OPA_API_KEY);
-  if (c.env?.ELEVENLABS_API_KEY) setElevenLabsApiKey(c.env.ELEVENLABS_API_KEY);
+  // Sovereign Revenue OS pipeline bridge (lead scoring/capture).
+  if (c.env?.REVENUE_API_URL) setRevenueApiUrl(c.env.REVENUE_API_URL);
+  if (c.env?.REVENUE_API_KEY) setRevenueApiKey(c.env.REVENUE_API_KEY);
+
   if (c.env?.ELEVENLABS_VOICE_ID) setElevenLabsVoiceId(c.env.ELEVENLABS_VOICE_ID);
   if (c.env?.ELEVENLABS_MODEL) setElevenLabsModel(c.env.ELEVENLABS_MODEL);
   if (c.env?.POSTIZ_API_URL) setPostizApiUrl(c.env.POSTIZ_API_URL);

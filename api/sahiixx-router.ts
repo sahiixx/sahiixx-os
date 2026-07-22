@@ -10,6 +10,7 @@ import {
   type AgentRow, type McpRow, type DealRow, type ContactRow, type CampaignRow, type VideoRow, type SignalRow, type DeployedRow,
 } from "./queries/demo-data";
 import { probePostiz, listIntegrations, createPost, type PostizIntegration, type PostizPostInput } from "./postiz";
+import { ingestLead, probeSovereign, sovereignConfigured, type SovereignLeadInput } from "./sovereign";
 import { logActivity } from "./lib/activity";
 
 // Demo-fallback pattern: every read tries the real DB first, and on ANY error
@@ -288,7 +289,8 @@ export const sahiixxRouter = router({
 
   signalCreate: protectedProcedure.input(z.object({
     category: z.string(), severity: z.enum(["critical", "high", "medium", "low"]), message: z.string(), source: z.string().optional()
-  })).mutation(async ({ input, ctx }): Promise<{ success: true; demo: boolean }> => {
+  })).mutation(async ({ input, ctx }): Promise<{ success: true; demo: boolean; sovereign?: any }> => {
+    let sovereignResult: any = undefined;
     try {
       const db = getDb();
       await db.insert(signalAlerts).values(input as any);
@@ -299,12 +301,30 @@ export const sahiixxRouter = router({
         detail: input.message.slice(0, 120),
         meta: { severity: input.severity, category: input.category },
       });
-      return { success: true, demo: false };
+      try {
+        sovereignResult = await ingestLead({
+          message: input.message,
+          source: input.source ?? "sahiixx-os",
+          buyer_type: input.category,
+        });
+      } catch (e: any) {
+        console.warn("[sovereign] ingest failed:", e?.message ?? e);
+      }
+      return { success: true, demo: false, sovereign: sovereignResult ?? null };
     } catch {
       addDemoSignal({
         category: input.category, severity: input.severity, message: input.message, source: input.source ?? null,
       });
-      return { success: true, demo: true };
+      try {
+        sovereignResult = await ingestLead({
+          message: input.message,
+          source: input.source ?? "sahiixx-os",
+          buyer_type: input.category,
+        });
+      } catch (e: any) {
+        console.warn("[sovereign] ingest failed (demo path):", e?.message ?? e);
+      }
+      return { success: true, demo: true, sovereign: sovereignResult ?? null };
     }
   }),
 
@@ -440,5 +460,32 @@ export const sahiixxRouter = router({
     } catch (e: any) {
       return { ok: false, error: (e?.message ?? String(e)).slice(0, 200) };
     }
+  }),
+
+  // ── Sovereign Revenue OS (lead pipeline bridge) ────────────────────────────
+  // Pushes a scored lead into the live sovereign pipeline and returns the
+  // scored envelope. Public (no auth) so the bridge can be exercised from
+  // automation without a session; the sovereign API itself enforces X-API-Key.
+  ingestLead: publicProcedure.input(z.object({
+    message: z.string(),
+    name: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().optional(),
+    source: z.string().optional(),
+    budget_min: z.number().int().optional(),
+    budget_max: z.number().int().optional(),
+    buyer_type: z.string().optional(),
+  })).mutation(async ({ input }): Promise<{ configured: boolean; result?: any; error?: string }> => {
+    if (!sovereignConfigured()) return { configured: false };
+    try {
+      const result = await ingestLead(input as SovereignLeadInput);
+      return { configured: true, result };
+    } catch (e: any) {
+      return { configured: true, error: (e?.message ?? String(e)).slice(0, 200) };
+    }
+  }),
+
+  sovereignStatus: publicProcedure.query(async () => {
+    return probeSovereign();
   }),
 });

@@ -134,6 +134,17 @@ export const env = {
   get postizApiKey() {
     return g("POSTIZ_API_KEY") ?? process.env.POSTIZ_API_KEY;
   },
+  // ── Sovereign Revenue OS (lead pipeline bridge) ──────────────────────────
+  // Optional. When both REVENUE_API_URL and REVENUE_API_KEY are set, signal
+  // creation in sahiixx-os also pushes the lead into the live sovereign
+  // pipeline (https://sovereign-revenue-os.fly.dev) for scoring + capture.
+  // With neither set, the push is skipped (local write still succeeds).
+  get revenueApiUrl() {
+    return g("REVENUE_API_URL") ?? process.env.REVENUE_API_URL ?? "";
+  },
+  get revenueApiKey() {
+    return g("REVENUE_API_KEY") ?? process.env.REVENUE_API_KEY ?? "";
+  },
   /** Provider: explicit JARVIS_PROVIDER wins; else auto-pick mimo > xai > kimi > openrouter > ollama. */
   get jarvisProvider() {
     const explicit = g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER;
@@ -234,6 +245,8 @@ export function setElevenLabsVoiceId(v: string) { (globalThis as any).ELEVENLABS
 export function setElevenLabsModel(m: string) { (globalThis as any).ELEVENLABS_MODEL = m; }
 export function setPostizApiUrl(u: string) { (globalThis as any).POSTIZ_API_URL = u; }
 export function setPostizApiKey(k: string) { (globalThis as any).POSTIZ_API_KEY = k; }
+export function setRevenueApiUrl(u: string) { (globalThis as any).REVENUE_API_URL = cleanEnv(u) ?? ""; }
+export function setRevenueApiKey(k: string) { (globalThis as any).REVENUE_API_KEY = cleanEnv(k) ?? ""; }
 export function setJarvisProvider(p: string) { (globalThis as any).JARVIS_PROVIDER = p; }
 export function setJarvisModel(m: string) { (globalThis as any).JARVIS_MODEL = m; }
 export function setJarvisOllamaModel(m: string) { (globalThis as any).JARVIS_OLLAMA_MODEL = m; }
