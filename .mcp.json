@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "sahiix-knowledge": {
-      "command": "npx",
-      "args": ["tsx", "mcp/knowledge/src/index.ts"],
+      "command": "pnpm",
+      "args": ["dlx", "tsx", "mcp/knowledge/src/index.ts"],
       "cwd": "F:\\repos\\sahiixx-os"
     }
   }

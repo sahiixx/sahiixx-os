@@ -32,13 +32,13 @@ Full-stack cyberpunk operating system — modules, real Neon Postgres, Cloudflar
 ### Install
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### Run
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 ## Agentic Architecture
@@ -103,7 +103,6 @@ db/
 drizzle.config.ts
 index.html
 mcp/
-package-lock.json
 package.json
 pnpm-lock.yaml
 pnpm-workspace.yaml
@@ -115,7 +114,7 @@ public/
 
 ```bash
 # lint / format before committing
-npm run lint
+pnpm run lint
 
 # run the CI check locally
 gh workflow run hermes-azure-check.yml
