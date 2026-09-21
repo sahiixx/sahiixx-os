@@ -182,5 +182,14 @@ server.prompt(
 );
 
 // ── Boot (stdio) ──────────────────────────────────────────────────────────────
-const transport = new StdioServerTransport();
-await server.connect(transport);
+// Wrapped in main() (no top-level await): package.json has no "type" field,
+// so tsx loads this as CJS where top-level await is unsupported.
+async function main(): Promise<void> {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main().catch((err) => {
+  console.error("[sahiix-knowledge] failed to start:", err);
+  process.exit(1);
+});
