@@ -13,39 +13,66 @@ const common = {
   entryPoints: [entry],
   bundle: true,
   format: "esm",
-  platform: "node",
+  platform: "neutral",
   target: "es2022",
-  logLevel: "info",
-  // Keep pg as external? No — CF nodejs_compat needs it bundled or as node built-in polyfill.
-  // Bundle everything; Workers provide node: modules via nodejs_compat.
+  logLevel: "warning",
+  conditions: ["worker", "browser", "import", "module", "default"],
+  mainFields: ["module", "main"],
+  // nodejs_compat on Workers provides node: builtins; keep them external.
+  external: [
+    "cloudflare:workers",
+    "node:fs",
+    "node:path",
+    "node:url",
+    "node:crypto",
+    "node:stream",
+    "node:buffer",
+    "node:util",
+    "node:events",
+    "node:os",
+    "node:net",
+    "node:tls",
+    "node:http",
+    "node:https",
+    "node:zlib",
+    "node:child_process",
+  ],
 };
 
-// Node production start (npm start)
-await esbuild.build({
-  ...common,
-  outfile: join(root, "dist", "boot.js"),
-  banner: {
-    js: `import { createRequire } from 'module';const require = createRequire(import.meta.url);`,
-  },
-});
+try {
+  console.log("build-api: bundling Node dist/boot.js ...");
+  await esbuild.build({
+    ...common,
+    platform: "node",
+    outfile: join(root, "dist", "boot.js"),
+    banner: {
+      js: `import { createRequire } from 'module';const require = createRequire(import.meta.url);`,
+    },
+  });
 
-// Cloudflare Pages Advanced Mode worker — no createRequire (import.meta.url is undefined there)
-mkdirSync(join(root, "dist", "public"), { recursive: true });
-await esbuild.build({
-  ...common,
-  outfile: join(root, "dist", "public", "_worker.js"),
-  banner: {
-    // Minimal shim so any accidental require() in deps does not crash at module load.
-    js: `const require = (n) => { throw new Error('require() not available in Workers: ' + n); };`,
-  },
-  define: {
-    "process.env.NODE_ENV": '"production"',
-  },
-});
+  console.log("build-api: bundling Pages _worker.js ...");
+  mkdirSync(join(root, "dist", "public"), { recursive: true });
+  await esbuild.build({
+    ...common,
+    outfile: join(root, "dist", "public", "_worker.js"),
+    banner: {
+      js: `const require = (n) => { throw new Error('require() not available in Workers: ' + n); };`,
+    },
+    define: {
+      "process.env.NODE_ENV": '"production"',
+    },
+  });
 
-writeFileSync(
-  join(root, "dist", "public", "_routes.json"),
-  JSON.stringify({ version: 1, include: ["/*"], exclude: [] }, null, 2),
-);
+  writeFileSync(
+    join(root, "dist", "public", "_routes.json"),
+    JSON.stringify({ version: 1, include: ["/*"], exclude: [] }, null, 2),
+  );
 
-console.log("build-api: dist/boot.js + dist/public/_worker.js + _routes.json");
+  console.log("build-api: OK → dist/boot.js + dist/public/_worker.js + _routes.json");
+} catch (err) {
+  console.error("build-api FAILED:", err?.message ?? err);
+  if (err?.errors) {
+    for (const e of err.errors) console.error("  ", e.text);
+  }
+  process.exit(1);
+}
