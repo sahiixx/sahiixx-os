@@ -1,27 +1,35 @@
-# Cloudflare Pages build
+# Cloudflare Pages — required settings
 
-## Required settings (Dashboard → Settings → Builds)
+## Dashboard → Settings → Builds and deployments
 
-| Setting | Value |
-|---------|--------|
+| Setting | Exact value |
+|---------|-------------|
 | **Production branch** | `main` |
 | **Build command** | `pnpm run build` |
 | **Build output directory** | `dist/public` |
-| **Root directory** | `/` (repo root) |
+| **Root directory** | *(empty / `/`)* |
+| **Node version** | `22` (env `NODE_VERSION=22`) |
 
-Do **not** set the build command to bare `vite build …` — `vite` is not on PATH;
-`pnpm run build` runs the package script which uses local `node_modules/.bin`.
+Alternative build command (same result):
 
-## What `pnpm run build` does
-
-```bash
-vite build && node scripts/build-api.mjs
+```text
+bash scripts/pages-build.sh
 ```
 
-- Frontend → `dist/public`
-- Worker → `dist/public/_worker.js`
+## Do not
 
-## Retrying failed deploys
+- Retry a failed deployment of commit `7a9a5e8` — that SHA predates the fix.
+- Use bare `vite build` as the build command (`vite` is not on PATH).
 
-Do **not** “Retry deployment” on an old SHA (e.g. `7a9a5e8`). That rebuilds the broken commit.
-Trigger a **new deployment from latest `main`** instead.
+## After changing settings
+
+**Deployments → Create deployment** from branch **`main`** (latest commit), or push any commit to `main`.
+
+Confirm the log shows:
+
+```text
+HEAD is now at <NOT 7a9a5e8>
+> pnpm run build
+>> vite build
+>> build-api.mjs
+```
