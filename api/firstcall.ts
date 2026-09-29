@@ -1,24 +1,17 @@
 /**
  * FirstCall revenue bridge — canonical lead → deal → commission path.
- *
- * Prefer this over sovereign-revenue-os for production attribution.
+ * Prefer over sovereign-revenue-os for production attribution.
  * Contracts: https://github.com/sahiixx/sahiixx-production-hardening
- *
- * Env:
- *   FIRSTCALL_URL  base URL, e.g. https://api.example.com  (appends /v1/leads, /v1/metrics)
- *   FIRSTCALL_TOKEN optional bearer
- *
- * Graceful degrade: when unset, all calls return null / available:false.
  */
 
-import { env } from "./lib/env";
+import { getFirstcallUrl, getFirstcallToken } from "./lib/firstcall-env";
 
 export function firstcallConfigured(): boolean {
-  return !!env.firstcallUrl;
+  return !!getFirstcallUrl();
 }
 
 function base(): string {
-  return env.firstcallUrl!.replace(/\/$/, "");
+  return getFirstcallUrl().replace(/\/$/, "");
 }
 
 function headers(extra: Record<string, string> = {}): Record<string, string> {
@@ -26,7 +19,8 @@ function headers(extra: Record<string, string> = {}): Record<string, string> {
     "content-type": "application/json",
     ...extra,
   };
-  if (env.firstcallToken) h["authorization"] = `Bearer ${env.firstcallToken}`;
+  const token = getFirstcallToken();
+  if (token) h["authorization"] = `Bearer ${token}`;
   return h;
 }
 
