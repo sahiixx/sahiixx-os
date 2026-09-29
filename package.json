@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/build-api.mjs",
+    "build": "node ./node_modules/vite/bin/vite.js build && node scripts/build-api.mjs",
+    "pages:build": "bash scripts/pages-build.sh",
     "start": "NODE_ENV=production node dist/boot.js",
     "check": "tsc -b --pretty false",
     "db:push": "drizzle-kit push",
