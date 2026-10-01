@@ -23,6 +23,7 @@ import {
   setElevenLabsApiKey, setElevenLabsVoiceId, setElevenLabsModel,
   setPostizApiUrl, setPostizApiKey,
   setRevenueApiUrl, setRevenueApiKey,
+  setFirstCallUrl, setFirstCallToken,
   setEstateApiUrl, setEstateApiKey,
   setJarvisOsAgentUrl, setJarvisOsToken,
 } from "./lib/env";
@@ -111,6 +112,9 @@ type Bindings = {
   // Sovereign Revenue OS pipeline bridge (lead scoring/capture). Optional.
   REVENUE_API_URL?: string;
   REVENUE_API_KEY?: string;
+  // FirstCall revenue API (lead capture). Optional; independent of the above.
+  FIRSTCALL_URL?: string;
+  FIRSTCALL_TOKEN?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -156,6 +160,10 @@ app.use("*", async (c, next) => {
   // Sovereign Revenue OS pipeline bridge (lead scoring/capture).
   if (c.env?.REVENUE_API_URL) setRevenueApiUrl(c.env.REVENUE_API_URL);
   if (c.env?.REVENUE_API_KEY) setRevenueApiKey(c.env.REVENUE_API_KEY);
+  // FirstCall revenue API (lead capture). Always overwrite — never leave a
+  // stale globalThis from a prior isolate request (cf. the ESTATE_API_* note).
+  setFirstCallUrl(c.env?.FIRSTCALL_URL ?? "");
+  setFirstCallToken(c.env?.FIRSTCALL_TOKEN ?? "");
 
   if (c.env?.ELEVENLABS_VOICE_ID) setElevenLabsVoiceId(c.env.ELEVENLABS_VOICE_ID);
   if (c.env?.ELEVENLABS_MODEL) setElevenLabsModel(c.env.ELEVENLABS_MODEL);

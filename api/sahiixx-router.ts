@@ -11,6 +11,7 @@ import {
 } from "./queries/demo-data";
 import { probePostiz, listIntegrations, createPost, type PostizIntegration, type PostizPostInput } from "./postiz";
 import { ingestLead, probeSovereign, sovereignConfigured, type SovereignLeadInput } from "./sovereign";
+import { firstCallConfigured, probeFirstCall, pushLead, type FirstCallLeadInput } from "./firstcall";
 import { logActivity } from "./lib/activity";
 
 // Demo-fallback pattern: every read tries the real DB first, and on ANY error
@@ -289,8 +290,27 @@ export const sahiixxRouter = router({
 
   signalCreate: protectedProcedure.input(z.object({
     category: z.string(), severity: z.enum(["critical", "high", "medium", "low"]), message: z.string(), source: z.string().optional()
-  })).mutation(async ({ input, ctx }): Promise<{ success: true; demo: boolean; sovereign?: any }> => {
+  })).mutation(async ({ input, ctx }): Promise<{ success: true; demo: boolean; sovereign?: any; firstcall?: any }> => {
     let sovereignResult: any = undefined;
+    let firstcallResult: any = undefined;
+    // A signal is an alert, not a qualified buyer, so it is captured with
+    // contact_consent kept at the API default and the text kept in `notes`.
+    // Deliberately low-friction: the point is a durable lead record in
+    // FirstCall, not a scored purchase.
+    const pushFirstCall = async () => {
+      try {
+        firstcallResult = await pushLead({
+          full_name: `${input.category} signal`,
+          notes: input.message.slice(0, 500),
+          source: "internal",
+          transaction_type: "buy",
+          currency: "AED",
+          cohort: "ai_assisted",
+        }, { idempotencyKey: `os-signal:${input.category}:${input.message.slice(0, 80)}` });
+      } catch (e: any) {
+        console.warn("[firstcall] ingest failed:", e?.message ?? e);
+      }
+    };
     try {
       const db = getDb();
       await db.insert(signalAlerts).values(input as any);
@@ -310,7 +330,8 @@ export const sahiixxRouter = router({
       } catch (e: any) {
         console.warn("[sovereign] ingest failed:", e?.message ?? e);
       }
-      return { success: true, demo: false, sovereign: sovereignResult ?? null };
+      await pushFirstCall();
+      return { success: true, demo: false, sovereign: sovereignResult ?? null, firstcall: firstcallResult ?? null };
     } catch {
       addDemoSignal({
         category: input.category, severity: input.severity, message: input.message, source: input.source ?? null,
@@ -324,7 +345,8 @@ export const sahiixxRouter = router({
       } catch (e: any) {
         console.warn("[sovereign] ingest failed (demo path):", e?.message ?? e);
       }
-      return { success: true, demo: true, sovereign: sovereignResult ?? null };
+      await pushFirstCall();
+      return { success: true, demo: true, sovereign: sovereignResult ?? null, firstcall: firstcallResult ?? null };
     }
   }),
 
@@ -487,5 +509,38 @@ export const sahiixxRouter = router({
 
   sovereignStatus: publicProcedure.query(async () => {
     return probeSovereign();
+  }),
+
+  // ── FirstCall revenue API (live lead capture) ───────────────────────────────
+  // Independent of the sovereign bridge above: FirstCall is a DIFFERENT service
+  // (/health + /v1/leads, no /pipeline/process). Public (no auth) so the bridge
+  // can be exercised from automation without a session; the FirstCall service
+  // enforces its own auth via FIRSTCALL_TOKEN when one is configured.
+  firstcallStatus: publicProcedure.query(async () => {
+    return probeFirstCall();
+  }),
+
+  firstcallIngestLead: publicProcedure.input(z.object({
+    full_name: z.string().optional(),
+    name: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+    transaction_type: z.string().optional(),
+    budget_min: z.number().optional(),
+    budget_max: z.number().optional(),
+    currency: z.string().optional(),
+    source: z.string().optional(),
+    notes: z.string().optional(),
+    cohort: z.string().optional(),
+    idempotency_key: z.string().optional(),
+  })).mutation(async ({ input }): Promise<{ configured: boolean; result?: any; error?: string }> => {
+    if (!firstCallConfigured()) return { configured: false };
+    const { idempotency_key, ...rest } = input as any;
+    try {
+      const result = await pushLead(rest as FirstCallLeadInput, { idempotencyKey: idempotency_key });
+      return { configured: true, result };
+    } catch (e: any) {
+      return { configured: true, error: (e?.message ?? String(e)).slice(0, 200) };
+    }
   }),
 });

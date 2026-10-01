@@ -145,6 +145,21 @@ export const env = {
   get revenueApiKey() {
     return g("REVENUE_API_KEY") ?? process.env.REVENUE_API_KEY ?? "";
   },
+  // ── FirstCall revenue API (lead capture, https://sahiixx-firstcall.fly.dev) ──
+  // Optional and INDEPENDENT of the sovereign bridge above. FirstCall exposes
+  // /health + /v1/{leads,appointments,deals,commissions,metrics} — it has NO
+  // /pipeline/process, so this is a separate service with a separate config.
+  // Pointing REVENUE_API_URL at FirstCall 404s every push.
+  // Accepts either the bare origin or the full .../v1/leads URL; the client
+  // normalises both so the dashboard value cannot be got wrong.
+  // FIRSTCALL_TOKEN is optional (the service has no auth today) and is sent as
+  // `Authorization: Bearer` when set, so adding auth later needs no code change.
+  get firstCallUrl() {
+    return g("FIRSTCALL_URL") ?? process.env.FIRSTCALL_URL ?? "";
+  },
+  get firstCallToken() {
+    return g("FIRSTCALL_TOKEN") ?? process.env.FIRSTCALL_TOKEN ?? "";
+  },
   /** Provider: explicit JARVIS_PROVIDER wins; else auto-pick mimo > xai > kimi > openrouter > ollama. */
   get jarvisProvider() {
     const explicit = g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER;
@@ -247,6 +262,8 @@ export function setPostizApiUrl(u: string) { (globalThis as any).POSTIZ_API_URL 
 export function setPostizApiKey(k: string) { (globalThis as any).POSTIZ_API_KEY = k; }
 export function setRevenueApiUrl(u: string) { (globalThis as any).REVENUE_API_URL = cleanEnv(u) ?? ""; }
 export function setRevenueApiKey(k: string) { (globalThis as any).REVENUE_API_KEY = cleanEnv(k) ?? ""; }
+export function setFirstCallUrl(u: string) { (globalThis as any).FIRSTCALL_URL = cleanEnv(u) ?? ""; }
+export function setFirstCallToken(k: string) { (globalThis as any).FIRSTCALL_TOKEN = cleanEnv(k) ?? ""; }
 export function setJarvisProvider(p: string) { (globalThis as any).JARVIS_PROVIDER = p; }
 export function setJarvisModel(m: string) { (globalThis as any).JARVIS_MODEL = m; }
 export function setJarvisOllamaModel(m: string) { (globalThis as any).JARVIS_OLLAMA_MODEL = m; }
