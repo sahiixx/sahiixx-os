@@ -61,6 +61,8 @@ export interface FirstCallLeadInput {
   tenant_id?: string;
   cohort?: string;
   notes?: string;
+  /** Stable key so a retried push de-duplicates instead of creating a second lead. */
+  idempotency_key?: string;
 }
 
 export interface FirstCallLeadResult {
@@ -87,7 +89,12 @@ export async function pushLead(
   const source = input.source && KNOWN_SOURCES.has(input.source) ? input.source : "internal";
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (opts?.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
+  // Prefer the caller's explicit opt, else the per-input key, else derive a stable
+  // one from the lead's identity so retries collapse onto the same lead.
+  headers["Idempotency-Key"] =
+    opts?.idempotencyKey ||
+    input.idempotency_key ||
+    `os-lead:${tenantId}:${input.phone || input.email || input.lead_id || Date.now()}`;
   headers["X-Tenant-Id"] = tenantId;
   if (env.firstCallToken) headers["Authorization"] = `Bearer ${env.firstCallToken}`;
 
@@ -149,5 +156,27 @@ export async function probeFirstCall(): Promise<{
     return { available: true, healthy: json?.status === "ok", error: null };
   } catch (e: any) {
     return { available: true, healthy: false, error: (e?.message ?? String(e)).slice(0, 200) };
+  }
+}
+
+/** Cohort metrics (leads/deals/commissions) for the status dashboard. */
+export async function fetchMetrics(tenantId?: string): Promise<any | null> {
+  if (!firstCallConfigured()) return null;
+  const q = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : "";
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
+  try {
+    const res = await fetch(`${baseUrl()}/v1/metrics${q}`, {
+      method: "GET",
+      headers: env.firstCallToken ? { Authorization: `Bearer ${env.firstCallToken}` } : {},
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`FirstCall /v1/metrics ${res.status}: ${detail.slice(0, 200)}`);
+    }
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
   }
 }

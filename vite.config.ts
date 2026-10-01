@@ -4,10 +4,6 @@ import react from "@vitejs/plugin-react"
 import { defineConfig, loadEnv } from "vite"
 
 export default defineConfig(({ mode }) => {
-  // Vite loads .env into import.meta.env (VITE_ prefix only) but does NOT push
-  // arbitrary .env keys into process.env for the Hono server module. The server
-  // (api/lib/env.ts) reads process.env in dev, so bridge .env → process.env here.
-  // Empty prefix loads ALL .env vars (not just VITE_*) and .env.local.
   const envVars = loadEnv(mode, process.cwd(), "");
   for (const [k, v] of Object.entries(envVars)) {
     if (!(k in process.env)) process.env[k] = v;
@@ -28,12 +24,12 @@ export default defineConfig(({ mode }) => {
       },
     },
     envDir: path.resolve(__dirname),
+    // Cut log noise on Cloudflare Pages (hundreds of font lines truncated the deploy log).
+    logLevel: mode === "production" ? "warn" : "info",
     build: {
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true,
-      // Split the ~930KB single bundle into parallel vendor chunks so the app
-      // downloads faster and the "chunk > 500KB" build warning clears. The
-      // heavy, stable deps get their own chunks; app code stays together.
+      reportCompressedSize: false,
       rollupOptions: {
         output: {
           manualChunks: {
