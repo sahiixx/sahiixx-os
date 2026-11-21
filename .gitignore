@@ -50,3 +50,5 @@ scripts/estate-public-quick.pid
 
 playwright-report/
 test-results/
+.vercel/
+.env.local
