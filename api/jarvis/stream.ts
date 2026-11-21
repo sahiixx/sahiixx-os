@@ -20,12 +20,12 @@ import { executeTool } from "./tools";
 import { routeCommand } from "./router";
 import { pendingForSession } from "./approvals";
 import type { JarvisMessage, JarvisSession, SSEEvent } from "./types";
-import { sapiSynth, warmSapi } from "./sapi";
+import { sapiSynth } from "./sapi";
 
 // Pre-warm the persistent Windows SAPI process at module load so the first user
 // turn doesn't pay the ~1.5s PowerShell + System.Speech cold start. No-op off
 // Windows. Fire-and-forget — never blocks request handling.
-warmSapi();
+// Speech starts lazily when a user requests it; importing the API has no process side effects.
 
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 min idle → evicted
 const sessions = new Map<string, JarvisSession>();
@@ -43,19 +43,15 @@ export function registerJarvisRoutes(app: Hono<any>) {
       return c.json({ detail: "Invalid JSON body" }, 400);
     }
     const message = (body.message ?? "").trim();
+    if (message.length > 16000) return c.json({ detail: "Message too long" }, 413);
     if (!message) return c.json({ detail: "Missing 'message'" }, 400);
     // Per-turn voice override from the UI voice-picker; empty = env default.
     const voiceOverride = (body.voiceId ?? "").trim() || null;
 
     const session = getOrCreateSession(body.sessionId, user.email);
-    // User grants full device control in natural language (E2E on Windows).
-    if (/\b(all control|full control|os control|control (my )?(pc|device|windows|computer)|e2e|screen.?capture|you can (see|view|control))\b/i.test(message)) {
-      session.allowOsControl = true;
-      session.allowShell = true;
-      // Raw shell still requires explicit "raw shell" — keep safer default off unless asked.
-      if (/\b(raw shell|full shell|win_script|unrestricted)\b/i.test(message)) {
-        session.allowRawShell = true;
-      }
+    // Device capabilities require explicit administrator settings, never message text.
+    if (user.role !== "admin") {
+      session.allowShell = session.allowOsControl = session.allowRawShell = session.situational = false;
     }
     session.messages.push({ role: "user", content: message });
     session.lastActiveAt = Date.now();
@@ -251,6 +247,7 @@ export function registerJarvisRoutes(app: Hono<any>) {
   app.post("/api/jarvis/approve", async (c) => {
     const user = await verifyBearer(c.req.raw.headers.get("authorization"));
     if (!user) return c.json({ detail: "Unauthorized" }, 401);
+    if (user.role !== "admin") return c.json({ detail: "Administrator required" }, 403);
     let body: { nonce?: string };
     try {
       body = await c.req.json();

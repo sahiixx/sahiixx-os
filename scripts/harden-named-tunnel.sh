@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-TOKEN=$(cat /home/xx/.cloudflared/sahiix-estate.token)
-printf 'TUNNEL_TOKEN=%s\n' "$TOKEN" > /home/xx/.cloudflared/sahiix-estate.env
-chmod 600 /home/xx/.cloudflared/sahiix-estate.env
+TOKEN=$(cat "${HOME}/.cloudflared/sahiix-estate.token")
+printf 'TUNNEL_TOKEN=%s\n' "$TOKEN" > "${HOME}/.cloudflared/sahiix-estate.env"
+chmod 600 "${HOME}/.cloudflared/sahiix-estate.env"
 
-cat > /home/xx/.config/systemd/user/estate-tunnel.service <<'UNIT'
+cat > "${HOME}/.config/systemd/user/estate-tunnel.service" <<'UNIT'
 [Unit]
 Description=Cloudflare named tunnel sahiix-estate → :3001
 After=network-online.target
@@ -32,4 +32,4 @@ echo "pid=$PID"
 if [ -n "$PID" ] && [ "$PID" != "0" ]; then
   tr '\0' ' ' < "/proc/$PID/cmdline"; echo
 fi
-grep -E 'Registered tunnel|Updated to new|ERR' /home/xx/estate-tunnel.log | tail -10
+grep -E 'Registered tunnel|Updated to new|ERR' "${HOME}/estate-tunnel.log" | tail -10

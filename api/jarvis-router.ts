@@ -3,7 +3,7 @@
 // in-memory session map in jarvis/stream.ts — no DB. Procedure signatures are
 // stable so v1.1 can swap in Drizzle/Neon without touching the client.
 import { z } from "zod";
-import { router, protectedProcedure } from "./context";
+import { router, protectedProcedure, adminProcedure } from "./context";
 import { listSessionsForUser, getMessages, setAllowShell, setAllowOsControl, setAllowRawShell, setSituational } from "./jarvis/stream";
 import { listSapiVoices } from "./jarvis/sapi";
 import { env } from "./lib/env";
@@ -22,19 +22,19 @@ export const jarvisRouter = router({
     .input(z.object({ id: z.string() }))
     .query(({ ctx, input }) => getMessages(input.id, ctx.user!.email) ?? []),
 
-  setAllowShell: protectedProcedure
+  setAllowShell: adminProcedure
     .input(z.object({ id: z.string(), allow: z.boolean() }))
     .mutation(({ ctx, input }) => ({ ok: setAllowShell(input.id, ctx.user!.email, input.allow) })),
 
-  setAllowOsControl: protectedProcedure
+  setAllowOsControl: adminProcedure
     .input(z.object({ id: z.string(), allow: z.boolean() }))
     .mutation(({ ctx, input }) => ({ ok: setAllowOsControl(input.id, ctx.user!.email, input.allow) })),
 
-  setAllowRawShell: protectedProcedure
+  setAllowRawShell: adminProcedure
     .input(z.object({ id: z.string(), allow: z.boolean() }))
     .mutation(({ ctx, input }) => ({ ok: setAllowRawShell(input.id, ctx.user!.email, input.allow) })),
 
-  setSituational: protectedProcedure
+  setSituational: adminProcedure
     .input(z.object({ id: z.string(), allow: z.boolean() }))
     .mutation(({ ctx, input }) => ({ ok: setSituational(input.id, ctx.user!.email, input.allow) })),
 

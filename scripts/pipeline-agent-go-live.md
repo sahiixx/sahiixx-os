@@ -27,12 +27,13 @@ These need either a browser login or your Cloudflare dashboard. I can't do
 them for you.
 
 ### Step 3 — one-time `cloudflared` login (creates cert.pem)
+(Set `WSL_DISTRO` if your distro is not `Ubuntu`, e.g. `${WSL_DISTRO:-Ubuntu}`.)
 ```
-! wsl -d Ubuntu-24.04 -- bash -lc "~/.local/bin/cloudflared tunnel login"
+! wsl -d Ubuntu -- bash -lc "~/.local/bin/cloudflared tunnel login"
 ```
 Authorize your zone in the browser. Verify:
 ```
-! wsl -d Ubuntu-24.04 -- bash -lc "ls ~/.cloudflared/cert.pem && ~/.local/bin/cloudflared tunnel list"
+! wsl -d Ubuntu -- bash -lc "ls ~/.cloudflared/cert.pem && ~/.local/bin/cloudflared tunnel list"
 ```
 (cert.pem is currently absent, so `tunnel list` fails today — that's expected.)
 
@@ -48,7 +49,7 @@ Dashboard → Zero Trust → Access → Applications → Add application → Sel
 **4b — ingress rule on the EXISTING tunnel (no new tunnel/token/unit)**
 CLI (after Step 3 cert.pem):
 ```
-! wsl -d Ubuntu-24.04 -- bash -lc "TUN=sahiix-estate; ZONE=YOURZONE.example; ~/.local/bin/cloudflared tunnel route dns \"\$TUN\" pipeline.\$ZONE"
+! wsl -d Ubuntu -- bash -lc "TUN=sahiix-estate; ZONE=YOURZONE.example; ~/.local/bin/cloudflared tunnel route dns \"\$TUN\" pipeline.\$ZONE"
 ```
 Then dashboard → Networks → Tunnels → `sahiix-estate` → Public Hostname →
 Add: subdomain `pipeline`, domain `<your-zone>`, service `HTTP localhost:8010`,
@@ -56,7 +57,7 @@ Save. (Running tunnel auto-picks-up dashboard config; no restart.)
 
 **Verify:**
 ```
-! wsl -d Ubuntu-24.04 -- bash -lc "curl -sI -m 10 https://pipeline.YOURZONE.example/health | head -5"
+! wsl -d Ubuntu -- bash -lc "curl -sI -m 10 https://pipeline.YOURZONE.example/health | head -5"
 ```
 Expect a `302`/`401` to the Access login first; after browser auth, `https://pipeline.<zone>/health` returns the pipeline-agent JSON.
 

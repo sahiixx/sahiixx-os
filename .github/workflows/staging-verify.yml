@@ -1,0 +1,60 @@
+name: staging-verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_synthetic_staging:
+        description: "Type verify-staging to confirm this is a dedicated, disposable staging database with synthetic data"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-verify
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    if: ${{ inputs.confirm_synthetic_staging == 'verify-staging' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    environment-url: https://console.neon.tech/app/projects
+    env:
+      APP_ENV: staging
+      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: pnpm
+      - name: Validate isolated staging target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL" || { echo "STAGING_DATABASE_URL is missing in the protected staging environment" >&2; exit 1; }
+          node --input-type=module <<'NODE'
+          const url = new URL(process.env.DATABASE_URL);
+          if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error('Staging URL must use PostgreSQL');
+          if (!['require', 'verify-full'].includes(url.searchParams.get('sslmode'))) throw new Error('Staging URL must require TLS');
+          const host = url.hostname.toLowerCase();
+          if (!host.includes('neon.tech') || /prod|production|main/.test(url.username.toLowerCase() + ' ' + url.pathname.toLowerCase())) {
+            throw new Error('Refusing a non-Neon or production-looking staging target');
+          }
+          console.log('Staging URL shape validated; credentials and host omitted.');
+          NODE
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify schema migration export
+        run: pnpm run check:schema > "$RUNNER_TEMP/staging-schema.sql"
+      - name: Apply migrations to staging only
+        run: pnpm run db:migrate
+      - name: Verify database readiness without reading customer records
+        run: pnpm run check

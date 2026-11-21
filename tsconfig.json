@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -13,14 +17,37 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@db/*": ["db/*"],
-      "@db": ["db/schema"],
-      "@contracts/*": ["contracts/*"]
-    }
+      "@/*": [
+        "./src/*"
+      ],
+      "@db/*": [
+        "./db/*"
+      ],
+      "@db": [
+        "./db/schema"
+      ],
+      "@contracts/*": [
+        "./contracts/*"
+      ]
+    },
+    "types": [
+      "node",
+      "vite/client"
+    ]
   },
-  "include": ["src", "api", "db"],
-  "exclude": ["node_modules", "dist", ".turbo", "apps", "packages", "**/*.mjs", "**/*.cjs"]
+  "include": [
+    "src",
+    "api",
+    "db"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".turbo",
+    "apps",
+    "packages",
+    "**/*.mjs",
+    "**/*.cjs"
+  ]
 }

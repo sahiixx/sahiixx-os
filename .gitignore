@@ -47,3 +47,8 @@ scripts/estate-public-heal.log
 scripts/estate-public-quick.log
 scripts/estate-public-quick.pid
 
+
+playwright-report/
+test-results/
+.vercel/
+.env.local

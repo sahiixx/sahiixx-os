@@ -3,7 +3,7 @@ import os
 import sqlite3
 import json
 
-db = "/home/xx/projects/sahiix-estate/estate.db"
+db = os.environ.get("ESTATE_DB_PATH") or os.path.expanduser("~/projects/sahiix-estate/estate.db")
 print("exists", os.path.exists(db), "size", os.path.getsize(db) if os.path.exists(db) else 0)
 con = sqlite3.connect(db)
 cur = con.cursor()

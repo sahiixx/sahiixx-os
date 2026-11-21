@@ -1,3 +1,4 @@
+import { runtimeBinding } from "../lib/runtime";
 /**
  * DB access for Neon (HTTP) and Hyperdrive (TCP via postgres.js on CF).
  *
@@ -19,10 +20,11 @@ type DbInstance =
   | ReturnType<typeof drizzlePostgresJs<typeof fullSchema>>;
 
 let neonInstance: DbInstance | undefined;
+let neonInstanceUrl: string | undefined;
 /** Hyperdrive clients must not be long-lived singletons on Workers — see getDb(). */
 
 function hyperdriveUrl(): string | undefined {
-  return (globalThis as any).__HYPERDRIVE_URL as string | undefined;
+  return runtimeBinding("__HYPERDRIVE_URL") as string | undefined;
 }
 
 /** True Neon URL (not a Hyperdrive local/proxy string). */
@@ -43,7 +45,8 @@ export function getDb() {
 
   // 1) Neon HTTP when we have a usable URL (stable on Pages; no TCP pool).
   if (neonUrl && (/neon\.tech/i.test(neonUrl) || !hd)) {
-    if (!neonInstance) {
+    if (!neonInstance || neonInstanceUrl !== neonUrl) {
+      neonInstanceUrl = neonUrl;
       const client = neon(neonUrl);
       neonInstance = drizzleNeonHttp(client, { schema: fullSchema });
     }
@@ -70,7 +73,8 @@ export function getDb() {
       "DATABASE_URL is not set. Check Cloudflare secrets or HYPERDRIVE binding.",
     );
   }
-  if (!neonInstance) {
+  if (!neonInstance || neonInstanceUrl !== url) {
+    neonInstanceUrl = url;
     const client = neon(url);
     neonInstance = drizzleNeonHttp(client, { schema: fullSchema });
   }
