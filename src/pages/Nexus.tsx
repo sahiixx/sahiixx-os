@@ -34,6 +34,11 @@ export default function Nexus() {
   const deals = dealList.data ?? [];
   const liveLeads = estateLeads.data?.leads ?? [];
   const liveOk = estateHealth.data?.ok ?? false;
+  const sourceHealth = estateHealth.data?.body;
+  const recoverySource = typeof sourceHealth === "object" && sourceHealth !== null
+    && "recovery" in sourceHealth && sourceHealth.recovery === true;
+  const snapshot = recoverySource && "snapshot" in sourceHealth && typeof sourceHealth.snapshot === "string"
+    ? sourceHealth.snapshot : null;
 
   const counts: Record<Tier, number> = { HARD: 0, MEDIUM: 0, LOW: 0, CLOSED: 0 };
   let totalValue = 0;
@@ -92,7 +97,7 @@ export default function Nexus() {
             }`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${liveOk ? "bg-success animate-pulse" : "bg-text-muted"}`} />
-            ESTATE {liveOk ? "ONLINE" : estateCfg.data?.configured ? "DOWN" : "UNCONFIGURED"}
+            ESTATE {recoverySource ? "RECOVERY" : liveOk ? "ONLINE" : estateCfg.data?.configured ? "DOWN" : "UNCONFIGURED"}
             {estateHealth.data?.latencyMs != null && liveOk ? ` · ${estateHealth.data.latencyMs}ms` : ""}
           </span>
         </div>
@@ -109,11 +114,16 @@ export default function Nexus() {
       {/* Live estate leads bridge */}
       <div className="border border-nexus/30 bg-surface rounded-lg p-4 mb-6">
         <div className="flex items-center justify-between gap-2 mb-2">
-          <h2 className="font-display text-sm tracking-widest text-nexus">LIVE ESTATE LEADS</h2>
+          <h2 className="font-display text-sm tracking-widest text-nexus">{recoverySource ? "RECOVERED ESTATE LEADS" : "LIVE ESTATE LEADS"}</h2>
           <span className="font-mono text-[10px] text-text-muted truncate max-w-[50%]">
             {estateCfg.data?.baseUrl ?? "set ESTATE_API_URL"}
           </span>
         </div>
+        {recoverySource && (
+          <p className="font-mono text-xs text-warning mb-2">
+            Read-only recovery snapshot{snapshot ? ` · ${snapshot}` : ""}. Freshness is unverified; import is disabled.
+          </p>
+        )}
         {!estateCfg.data?.configured && (
           <p className="font-mono text-xs text-text-muted mb-2">
             Bridge offline on edge. Local Vite uses http://127.0.0.1:3001. For prod, tunnel WSL estate-api and set Pages secret ESTATE_API_URL.
@@ -138,7 +148,7 @@ export default function Nexus() {
               </div>
               <button
                 type="button"
-                disabled={importLead.isPending}
+                disabled={importLead.isPending || recoverySource}
                 onClick={async () => {
                   await importLead.mutateAsync({ leadId: l.id, tier: "MEDIUM" });
                 }}

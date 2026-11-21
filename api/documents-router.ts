@@ -1,3 +1,4 @@
+import { requireDevelopmentFallback } from "./lib/production-policy";
 // Documents module tRPC router — searchable document archive (OCR + LLM + FTS).
 // Reads are publicProcedure; writes (ingest/reextract/ruleCreate) are
 // protectedProcedure (JWT-gated), matching the repo convention.
@@ -12,7 +13,7 @@
 
 import { z } from "zod";
 import { sql, eq, desc } from "drizzle-orm";
-import { router, publicProcedure, protectedProcedure } from "./context";
+import { router, protectedProcedure } from "./context";
 import { getDb } from "./queries/connection";
 import { documents, documentTypes, matchingRules } from "@db/schema";
 import { chatComplete, extractJson } from "./lib/llm";
@@ -65,6 +66,7 @@ async function runExtract(ocrText: string, sourceName: string): Promise<ExtractR
       metadata: obj.metadata && typeof obj.metadata === "object" ? (obj.metadata as Record<string, unknown>) : null,
     };
   } catch {
+      requireDevelopmentFallback();
     return null;
   }
 }
@@ -88,7 +90,7 @@ interface SearchHit {
 
 export const documentsRouter = router({
   // ── list ───────────────────────────────────────────────────────────────────
-  list: publicProcedure.input(z.object({ type: z.enum(DOC_TYPES).optional() }).optional()).query(
+  list: protectedProcedure.input(z.object({ type: z.enum(DOC_TYPES).optional() }).optional()).query(
     async ({ input }): Promise<DocumentRow[]> => {
       try {
         const db = getDb();
@@ -98,6 +100,7 @@ export const documentsRouter = router({
         }
         return await q;
       } catch {
+      requireDevelopmentFallback();
         return [...demoDocuments]
           .filter((d) => !input?.type || d.docType === input.type)
           .sort((a, b) => (b.createdAt ?? new Date(0)).getTime() - (a.createdAt ?? new Date(0)).getTime());
@@ -106,7 +109,7 @@ export const documentsRouter = router({
   ),
 
   // ── search (Postgres FTS, falls back to substring on demo) ──────────────────
-  search: publicProcedure.input(z.object({ query: z.string(), type: z.enum(DOC_TYPES).optional() })).query(
+  search: protectedProcedure.input(z.object({ query: z.string(), type: z.enum(DOC_TYPES).optional() })).query(
     async ({ input }): Promise<SearchHit[]> => {
       const q = input.query.trim();
       if (!q) return [];
@@ -135,6 +138,7 @@ export const documentsRouter = router({
           tags: r.tags,
         }));
       } catch {
+      requireDevelopmentFallback();
         // demo fallback: substring across ocrText + title, naive ranking by hit count
         const ql = q.toLowerCase();
         return demoDocuments
@@ -159,20 +163,21 @@ export const documentsRouter = router({
   ),
 
   // ── get ─────────────────────────────────────────────────────────────────────
-  get: publicProcedure.input(z.object({ id: z.number() })).query(
+  get: protectedProcedure.input(z.object({ id: z.number() })).query(
     async ({ input }): Promise<DocumentRow | null> => {
       try {
         const db = getDb();
         const rows = await db.select().from(documents).where(eq(documents.id, input.id));
         return rows[0] ?? null;
       } catch {
+      requireDevelopmentFallback();
         return demoDocuments.find((d) => d.id === input.id) ?? null;
       }
     },
   ),
 
   // ── types + rules (facets) ──────────────────────────────────────────────────
-  types: publicProcedure.query(
+  types: protectedProcedure.query(
     async (): Promise<{ types: DocumentTypeRow[]; rules: MatchingRuleRow[] }> => {
       try {
         const db = getDb();
@@ -182,6 +187,7 @@ export const documentsRouter = router({
         ]);
         return { types, rules };
       } catch {
+      requireDevelopmentFallback();
         return { types: [...demoDocTypes], rules: [...demoRules] };
       }
     },
@@ -204,6 +210,7 @@ export const documentsRouter = router({
         algorithm: r.algorithm, expression: r.expression, target: r.target, targetValue: r.targetValue,
       }));
     } catch {
+      requireDevelopmentFallback();
       rules = demoRules;
     }
     const matched = applyRules(input.ocrText, rules);
@@ -235,6 +242,7 @@ export const documentsRouter = router({
         .returning();
       return { doc: inserted[0], demo: false };
     } catch {
+      requireDevelopmentFallback();
       const doc = addDemoDocument({
         sourceName: input.sourceName,
         sourcePath: input.sourcePath ?? null,
@@ -259,6 +267,7 @@ export const documentsRouter = router({
         const rows = await db0.select().from(documents).where(eq(documents.id, input.id));
         row = rows[0] ?? null;
       } catch {
+      requireDevelopmentFallback();
         row = demoDocuments.find((d) => d.id === input.id) ?? null;
         isDemo = true;
       }
@@ -271,7 +280,8 @@ export const documentsRouter = router({
           const db0 = getDb();
           const rrows = await db0.select().from(matchingRules);
           rules = rrows.map((r) => ({ algorithm: r.algorithm, expression: r.expression, target: r.target, targetValue: r.targetValue }));
-        } catch { rules = demoRules; }
+        } catch {
+      requireDevelopmentFallback(); rules = demoRules; }
       }
       const matched = applyRules(row.ocrText, rules);
       const extracted = await runExtract(row.ocrText, row.sourceName);
@@ -297,6 +307,7 @@ export const documentsRouter = router({
           .where(eq(documents.id, input.id));
         return { success: true, demo: false };
       } catch {
+      requireDevelopmentFallback();
         return { success: true, demo: true };
       }
     },
@@ -314,6 +325,7 @@ export const documentsRouter = router({
       const inserted = await db.insert(matchingRules).values(input).returning();
       return { rule: inserted[0], demo: false };
     } catch {
+      requireDevelopmentFallback();
       const rule = addDemoRule({
         algorithm: input.algorithm, expression: input.expression,
         target: input.target, targetValue: input.targetValue,

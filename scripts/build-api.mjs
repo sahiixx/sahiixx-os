@@ -21,6 +21,7 @@ const common = {
   // nodejs_compat on Workers provides node: builtins; keep them external.
   external: [
     "cloudflare:workers",
+    "node:async_hooks",
     "node:fs",
     "node:path",
     "node:url",
@@ -55,6 +56,9 @@ try {
   await esbuild.build({
     ...common,
     outfile: join(root, "dist", "public", "_worker.js"),
+    // Select postgres.js's Cloudflare adapter, without changing Node builds.
+    conditions: ["workerd", ...common.conditions],
+    external: [...common.external, "cloudflare:sockets"],
     banner: {
       js: `const require = (n) => { throw new Error('require() not available in Workers: ' + n); };`,
     },

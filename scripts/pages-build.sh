@@ -6,9 +6,10 @@ cd "$(dirname "$0")/.."
 if [[ ! -d node_modules ]]; then
   echo "Installing deps with pnpm..."
   if command -v pnpm >/dev/null 2>&1; then
-    pnpm install
+    pnpm install --frozen-lockfile
   else
-    npm install
+    echo "Pinned pnpm is required; refusing an unlocked npm install." >&2
+    exit 1
   fi
 fi
 

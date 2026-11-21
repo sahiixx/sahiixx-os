@@ -12,21 +12,9 @@ import { systemRouter, APP_VERSION, APP_NAME } from "./system-router";
 import { nexusRouter } from "./nexus-router";
 import { registerJarvisRoutes } from "./jarvis/stream";
 import { router, verifyBearer, type AuthContext } from "./context";
-import {
-  setDatabaseUrl, setHyperdriveUrl, setAuthSecret, setAdminCreds,
-  setOpenRouterApiKey, setOpenAiApiKey, setAnthropicApiKey, setRetellApiKey,
-  setKimiApiKey, setKimiBaseUrl,
-  setXaiApiKey, setXaiBaseUrl, setXaiModel,
-  setMimoApiKey, setMimoBaseUrl, setMimoModel,
-  setOllamaUrl, setOllamaApiKey, setJarvisProvider, setJarvisModel, setJarvisOllamaModel,
-  setOpaDispatchUrl, setOpaApiKey,
-  setElevenLabsApiKey, setElevenLabsVoiceId, setElevenLabsModel,
-  setPostizApiUrl, setPostizApiKey,
-  setRevenueApiUrl, setRevenueApiKey,
-  setFirstCallUrl, setFirstCallToken,
-  setEstateApiUrl, setEstateApiKey,
-  setJarvisOsAgentUrl, setJarvisOsToken,
-} from "./lib/env";
+import { env } from "./lib/env";
+import { withRequestBindings } from "./lib/runtime";
+import { bodyLimit } from "hono/body-limit";
 import { testConnection, getDb, activeDatabaseMode } from "./queries/connection";
 import { agents } from "@db/schema";
 import { inc, prometheusText } from "./lib/metrics";
@@ -72,6 +60,7 @@ type Bindings = {
   HYPERDRIVE?: HyperdriveBinding;
   /** Workers AI binding (wrangler [ai] binding = "AI") */
   AI?: AiBinding;
+  APP_ENV?: string;
   AUTH_SECRET?: string;
   ADMIN_EMAIL?: string;
   ADMIN_PASSWORD?: string;
@@ -119,62 +108,27 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// Inject Cloudflare env into globalThis so lib/env + connection.ts can read it
-app.use("*", async (c, next) => {
-  // Neon HTTP first when DATABASE_URL secret is set (stable on Pages).
-  // Hyperdrive TCP is secondary (used when only HYPERDRIVE is bound).
-  if (c.env?.DATABASE_URL) {
-    setDatabaseUrl(c.env.DATABASE_URL);
+// Bindings belong to the request, never to the shared Worker global object.
+app.use("*", (c, next) => {
+  const values: Record<string, unknown> = c.env ? { ...c.env } : { ...process.env };
+  values.APP_ENV ??= process.env.NODE_ENV === "production" ? "production" : "development";
+  values.__DATABASE_URL = values.DATABASE_URL;
+  values.__HYPERDRIVE_URL = c.env?.HYPERDRIVE?.connectionString;
+  values.__WORKERS_AI = c.env?.AI;
+  return withRequestBindings(values, async () => {
+    inc("requests_total");
+    await next();
+  });
+});
+app.use("/api/*", bodyLimit({ maxSize: 2 * 1024 * 1024 }));
+app.use("/api/*", async (c, next) => {
+  c.header("Cache-Control", "no-store");
+  c.header("X-Request-ID", crypto.randomUUID());
+  if (["/api/env-check", "/api/db-test"].includes(c.req.path) && env.production) return c.notFound();
+  if (c.req.path === "/api/metrics") {
+    const user = await verifyBearer(c.req.header("authorization"));
+    if (user?.role !== "admin") return c.json({ error: "Not authorized" }, 401);
   }
-  if (c.env?.HYPERDRIVE?.connectionString) {
-    setHyperdriveUrl(c.env.HYPERDRIVE.connectionString);
-  }
-  if (c.env?.CF_PAGES) (globalThis as any).CF_PAGES = c.env.CF_PAGES;
-  // Workers AI binding (edge inference)
-  if (c.env?.AI) (globalThis as any).__WORKERS_AI = c.env.AI;
-  if (c.env?.AUTH_SECRET) setAuthSecret(c.env.AUTH_SECRET);
-  if (c.env?.ADMIN_EMAIL && c.env?.ADMIN_PASSWORD) {
-    setAdminCreds(c.env.ADMIN_EMAIL, c.env.ADMIN_PASSWORD);
-  }
-  // Jarvis env injection (Cloudflare path only; Vite dev reads .env via process.env).
-  if (c.env?.OPENROUTER_API_KEY) setOpenRouterApiKey(c.env.OPENROUTER_API_KEY);
-  if (c.env?.XAI_API_KEY) setXaiApiKey(c.env.XAI_API_KEY);
-  if (c.env?.XAI_BASE_URL) setXaiBaseUrl(c.env.XAI_BASE_URL);
-  if (c.env?.XAI_MODEL) setXaiModel(c.env.XAI_MODEL);
-  if (c.env?.MIMO_API_KEY) setMimoApiKey(c.env.MIMO_API_KEY);
-  if (c.env?.MIMO_BASE_URL) setMimoBaseUrl(c.env.MIMO_BASE_URL);
-  if (c.env?.MIMO_MODEL) setMimoModel(c.env.MIMO_MODEL);
-  if (c.env?.KIMI_API_KEY) setKimiApiKey(c.env.KIMI_API_KEY);
-  if (c.env?.KIMI_BASE_URL) setKimiBaseUrl(c.env.KIMI_BASE_URL);
-  if (c.env?.OPENAI_API_KEY) setOpenAiApiKey(c.env.OPENAI_API_KEY);
-  if (c.env?.ANTHROPIC_API_KEY) setAnthropicApiKey(c.env.ANTHROPIC_API_KEY);
-  if (c.env?.RETELL_API_KEY) setRetellApiKey(c.env.RETELL_API_KEY);
-  // Always set (cleaned) so BOM/whitespace from secret put cannot poison fetch URLs.
-  setOllamaUrl(c.env?.OLLAMA_URL ?? "");
-  setOllamaApiKey(c.env?.OLLAMA_API_KEY ?? "");
-  if (c.env?.JARVIS_PROVIDER) setJarvisProvider(c.env.JARVIS_PROVIDER);
-  if (c.env?.JARVIS_MODEL) setJarvisModel(c.env.JARVIS_MODEL);
-  if (c.env?.JARVIS_OLLAMA_MODEL) setJarvisOllamaModel(c.env.JARVIS_OLLAMA_MODEL);
-  if (c.env?.OPA_DISPATCH_URL) setOpaDispatchUrl(c.env.OPA_DISPATCH_URL);
-  if (c.env?.OPA_API_KEY) setOpaApiKey(c.env.OPA_API_KEY);
-  // Sovereign Revenue OS pipeline bridge (lead scoring/capture).
-  if (c.env?.REVENUE_API_URL) setRevenueApiUrl(c.env.REVENUE_API_URL);
-  if (c.env?.REVENUE_API_KEY) setRevenueApiKey(c.env.REVENUE_API_KEY);
-  // FirstCall revenue API (lead capture). Always overwrite — never leave a
-  // stale globalThis from a prior isolate request (cf. the ESTATE_API_* note).
-  setFirstCallUrl(c.env?.FIRSTCALL_URL ?? "");
-  setFirstCallToken(c.env?.FIRSTCALL_TOKEN ?? "");
-
-  if (c.env?.ELEVENLABS_VOICE_ID) setElevenLabsVoiceId(c.env.ELEVENLABS_VOICE_ID);
-  if (c.env?.ELEVENLABS_MODEL) setElevenLabsModel(c.env.ELEVENLABS_MODEL);
-  if (c.env?.POSTIZ_API_URL) setPostizApiUrl(c.env.POSTIZ_API_URL);
-  if (c.env?.POSTIZ_API_KEY) setPostizApiKey(c.env.POSTIZ_API_KEY);
-  // Always overwrite — never leave a stale globalThis value from a prior isolate request.
-  setEstateApiUrl(c.env?.ESTATE_API_URL ?? "");
-  setEstateApiKey(c.env?.ESTATE_API_KEY ?? "");
-  if (c.env?.JARVIS_OS_AGENT_URL) setJarvisOsAgentUrl(c.env.JARVIS_OS_AGENT_URL);
-  if (c.env?.JARVIS_OS_TOKEN) setJarvisOsToken(c.env.JARVIS_OS_TOKEN);
-  inc("requests_total");
   await next();
 });
 
@@ -186,12 +140,14 @@ app.use("*", async (c, next) => {
   c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   c.res.headers.set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
   c.res.headers.set("X-SAHIIXX-Version", APP_VERSION);
+  c.res.headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
+  if (env.production && new URL(c.req.url).protocol === "https:") c.res.headers.set("Strict-Transport-Security", "max-age=31536000");
 });
 
 app.use(
   "/*",
   cors({
-    origin: "*",
+    origin: (origin, c) => origin === new URL(c.req.url).origin ? origin : "",
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     exposeHeaders: ["X-SAHIIXX-Version"],
@@ -223,7 +179,7 @@ app.get("/api/ready", async (c) => {
       {
         status: "not_ready",
         version: APP_VERSION,
-        error: (e?.message ?? String(e)).slice(0, 200),
+        error: "Database unavailable",
         timestamp: new Date().toISOString(),
       },
       503,
@@ -268,8 +224,6 @@ app.get("/api/env-check", (c) => {
     hasHyperdrive: !!hd,
     hasWorkersAi: !!c.env?.AI,
     dbMode: dbSecret ? "neon-http" : hd ? "hyperdrive" : "none",
-    dbUrlPrefix: dbSecret ? dbSecret.substring(0, 28) + "..." : null,
-    hyperdrivePrefix: hd ? hd.substring(0, 28) + "..." : null,
     secretsPresent: {
       DATABASE_URL: flag("DATABASE_URL"),
       AUTH_SECRET: flag("AUTH_SECRET"),

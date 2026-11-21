@@ -181,8 +181,12 @@ function serviceControl(args: Record<string, unknown>, session: JarvisSession): 
 function runWsl(verb: Verb, service: string): string {
   // execFile (not exec) — no shell, so whitelisted verb/service can't be escaped.
   // Args are passed as a literal argv array; user text never reaches the shell.
+  const distro = env.wslDistro;
+  const args = distro
+    ? ["-d", distro, "--", "systemctl", "--user", verb, service]
+    : ["--", "systemctl", "--user", verb, service];
   try {
-    const out = execFileSync("wsl.exe", ["-d", "Ubuntu-24.04", "--", "systemctl", "--user", verb, service], {
+    const out = execFileSync("wsl.exe", args, {
       timeout: 15000,
       encoding: "utf8",
     });
@@ -193,6 +197,9 @@ function runWsl(verb: Verb, service: string): string {
     // systemctl status returns non-zero when a service is inactive — that's not an error.
     if (verb === "status" && stderr.includes("inactive")) {
       return `${service}: inactive (stopped)`;
+    }
+    if (verb === "status" && (stderr.includes("could not be found") || stderr.includes("not-found") || stdout.includes("could not be found") || stdout.includes("not-found"))) {
+      return `${service}: unit not installed in WSL (${distro || "default"})`;
     }
     if (verb === "status" && /Loaded:\s+loaded/.test(stdout)) {
       const active = /Active:\s+active\s+\(([^)]+)\)/.exec(stdout);

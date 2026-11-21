@@ -60,7 +60,7 @@ props = [dict(r) for r in cur.execute("SELECT * FROM properties ORDER BY id")]
 leads = [dict(r) for r in cur.execute("SELECT * FROM leads ORDER BY id")]
 print(json.dumps({"properties": props, "leads": leads}))
 `;
-  const r = spawnSync("wsl", ["-d", "Ubuntu-24.04", "--", "python3", "-c", py], {
+  const r = spawnSync("wsl", ["-d", process.env.WSL_DISTRO || "Ubuntu", "--", "python3", "-c", py], {
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
   });
@@ -221,7 +221,7 @@ cur.execute(
 con.commit()
 print(cur.lastrowid)
 `;
-    const r = spawnSync("wsl", ["-d", "Ubuntu-24.04", "--", "python3", "-c", py], { encoding: "utf8" });
+    const r = spawnSync("wsl", ["-d", process.env.WSL_DISTRO || "Ubuntu", "--", "python3", "-c", py], { encoding: "utf8" });
     if (r.status !== 0) {
       console.log(`  FAIL ${lead.name}: ${r.stderr || r.stdout}`);
       continue;

@@ -1,6 +1,5 @@
-// Env access that works in both Cloudflare Workers (binding via globalThis)
-// and plain Node/Vite dev (process.env). boot.ts injects Cloudflare env into
-// globalThis per request; here we just read whichever is populated.
+import { runtimeBinding } from "./runtime";
+// Request-scoped Cloudflare bindings; process environment in local Node.
 
 const DEV_AUTH_SECRET = "sahiixx-dev-secret-change-me"; // fallback so `npm run dev` works out of the box; prod MUST set AUTH_SECRET
 const DEV_ADMIN_EMAIL = "admin@sahiixx.os";
@@ -19,17 +18,21 @@ export function cleanEnv(v: unknown): string | undefined {
 }
 
 function g(key: string): string | undefined {
-  return cleanEnv((globalThis as any)[key]) ?? cleanEnv(process.env[key]);
+  return cleanEnv(runtimeBinding(key));
 }
 
 let authSecretWarned = false;
 
 export const env = {
+  get production() { return g("APP_ENV") ? g("APP_ENV") === "production" : g("NODE_ENV") === "production" || !!g("CF_PAGES"); },
   get databaseUrl() {
-    return g("__DATABASE_URL") ?? process.env.DATABASE_URL ?? "";
+    return g("__DATABASE_URL") ?? g("DATABASE_URL") ?? "";
   },
   get authSecret() {
     const s = g("AUTH_SECRET");
+    if (this.production && (!s || s.length < 32 || s === DEV_AUTH_SECRET)) {
+      throw new Error("Production requires a unique AUTH_SECRET of at least 32 characters");
+    }
     if (!s) {
       if (!authSecretWarned) {
         authSecretWarned = true;
@@ -40,39 +43,39 @@ export const env = {
     return s;
   },
   get adminEmail() {
-    return g("ADMIN_EMAIL") ?? DEV_ADMIN_EMAIL;
+    return g("ADMIN_EMAIL") ?? (this.production ? "" : DEV_ADMIN_EMAIL);
   },
   get adminPassword() {
-    return g("ADMIN_PASSWORD") ?? DEV_ADMIN_PASSWORD;
+    return g("ADMIN_PASSWORD") ?? (this.production ? "" : DEV_ADMIN_PASSWORD);
   },
   // ── Jarvis (realtime voice agent) ───────────────────────────────────────
   // All optional. With zero keys, Jarvis falls back to local Ollama for the
   // LLM and the browser's speechSynthesis for TTS — everything still works,
   // just lower quality + unreliable tool-calling on sub-7B local models.
   get openRouterApiKey() {
-    return g("OPENROUTER_API_KEY") ?? process.env.OPENROUTER_API_KEY;
+    return g("OPENROUTER_API_KEY");
   },
   /** xAI / Grok (OpenAI-compatible https://api.x.ai/v1). Optional Jarvis provider. */
   get xaiApiKey() {
-    return g("XAI_API_KEY") ?? process.env.XAI_API_KEY;
+    return g("XAI_API_KEY");
   },
   get xaiBaseUrl() {
-    return g("XAI_BASE_URL") ?? process.env.XAI_BASE_URL ?? "https://api.x.ai/v1";
+    return g("XAI_BASE_URL") ?? "https://api.x.ai/v1";
   },
   get xaiModel() {
-    return g("XAI_MODEL") ?? process.env.XAI_MODEL ?? "grok-3-mini";
+    return g("XAI_MODEL") ?? "grok-3-mini";
   },
   /** Xiaomi MiMo Open Platform (OpenAI-compatible https://api.xiaomimimo.com/v1). */
   get mimoApiKey() {
-    return g("MIMO_API_KEY") ?? process.env.MIMO_API_KEY;
+    return g("MIMO_API_KEY");
   },
   get mimoBaseUrl() {
-    return g("MIMO_BASE_URL") ?? process.env.MIMO_BASE_URL ?? "https://api.xiaomimimo.com/v1";
+    return g("MIMO_BASE_URL") ?? "https://api.xiaomimimo.com/v1";
   },
   get mimoModel() {
     // Free/public-beta path prefers flash; pro is paid. Official ids: mimo-v2.5-flash, mimo-v2.5-pro.
     // OpenRouter free: xiaomi/mimo-v2-flash:free (when JARVIS_PROVIDER=openrouter).
-    return g("MIMO_MODEL") ?? process.env.MIMO_MODEL ?? "mimo-v2.5-flash";
+    return g("MIMO_MODEL") ?? "mimo-v2.5-flash";
   },
   get kimiApiKey() {
     // "sk-kimi-…" keys from the Kimi Coding platform (platform.kimi.ai / kimi.com/code).
@@ -80,22 +83,22 @@ export const env = {
     // used against the kimi base URL below, with a "User-Agent: KimiCLI/1.0" header
     // (otherwise 403: "only available for Coding Agents such as Kimi CLI, Claude
     // Code, Roo Code, Kilo Code"). OpenAI-compatible chat/completions protocol.
-    return g("KIMI_API_KEY") ?? process.env.KIMI_API_KEY;
+    return g("KIMI_API_KEY");
   },
   get kimiBaseUrl() {
-    return g("KIMI_BASE_URL") ?? process.env.KIMI_BASE_URL ?? "https://api.kimi.com/coding/v1";
+    return g("KIMI_BASE_URL") ?? "https://api.kimi.com/coding/v1";
   },
   get openAiApiKey() {
-    return g("OPENAI_API_KEY") ?? process.env.OPENAI_API_KEY;
+    return g("OPENAI_API_KEY");
   },
   get anthropicApiKey() {
-    return g("ANTHROPIC_API_KEY") ?? process.env.ANTHROPIC_API_KEY;
+    return g("ANTHROPIC_API_KEY");
   },
   get retellApiKey() {
-    return g("RETELL_API_KEY") ?? process.env.RETELL_API_KEY;
+    return g("RETELL_API_KEY");
   },
   get ollamaUrl() {
-    return g("OLLAMA_URL") ?? process.env.OLLAMA_URL ?? "http://localhost:11434";
+    return g("OLLAMA_URL") ?? "http://localhost:11434";
   },
   // Ollama Cloud API key (https://ollama.com/settings/keys). When set, the
   // Ollama completion path sends it as `Authorization: Bearer <key>` and you
@@ -104,7 +107,7 @@ export const env = {
   // the base tag without the `-cloud` suffix (e.g. gpt-oss:120b, qwen3.5,
   // kimi-k2.6, deepseek-v4-flash). Catalog: https://ollama.com/search?c=cloud
   get ollamaApiKey() {
-    return g("OLLAMA_API_KEY") ?? process.env.OLLAMA_API_KEY;
+    return g("OLLAMA_API_KEY");
   },
   // ── ElevenLabs (neural TTS for Jarvis voice) ──────────────────────────────
   // Optional. When set, synthSpeech in api/jarvis/stream.ts prefers ElevenLabs
@@ -112,16 +115,16 @@ export const env = {
   // no key, falls back to OpenAI if OPENAI_API_KEY is set, else the client uses
   // browser speechSynthesis on the text it already received.
   get elevenLabsApiKey() {
-    return g("ELEVENLABS_API_KEY") ?? process.env.ELEVENLABS_API_KEY;
+    return g("ELEVENLABS_API_KEY");
   },
   get elevenLabsVoiceId() {
     // "Rachel" — a clean default narrator. Override with any voice id from your
     // ElevenLabs library / the voice the user used in flow WCS4cjuHieXRjbpEy61l.
-    return g("ELEVENLABS_VOICE_ID") ?? process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
+    return g("ELEVENLABS_VOICE_ID") ?? "21m00Tcm4TlvDq8ikWAM";
   },
   get elevenLabsModel() {
     // eleven_turbo_v2_5 = lowest latency for realtime; eleven_multilingual_v2 = best quality.
-    return g("ELEVENLABS_MODEL") ?? process.env.ELEVENLABS_MODEL ?? "eleven_turbo_v2_5";
+    return g("ELEVENLABS_MODEL") ?? "eleven_turbo_v2_5";
   },
   // ── Postiz (self-hostable social scheduler — SARA content factory backend) ──
   // Optional. When both POSTIZ_API_URL and POSTIZ_API_KEY are set, SARA can list
@@ -129,10 +132,10 @@ export const env = {
   // With neither set, SARA stays in local-tracking mode (campaigns/videos dashboards).
   get postizApiUrl() {
     // Postiz Public API base: cloud = https://api.postiz.com/public/v1, self-hosted = <backend>/public/v1
-    return g("POSTIZ_API_URL") ?? process.env.POSTIZ_API_URL ?? "";
+    return g("POSTIZ_API_URL") ?? "";
   },
   get postizApiKey() {
-    return g("POSTIZ_API_KEY") ?? process.env.POSTIZ_API_KEY;
+    return g("POSTIZ_API_KEY");
   },
   // ── Sovereign Revenue OS (lead pipeline bridge) ──────────────────────────
   // Optional. When both REVENUE_API_URL and REVENUE_API_KEY are set, signal
@@ -140,10 +143,10 @@ export const env = {
   // pipeline (https://sovereign-revenue-os.fly.dev) for scoring + capture.
   // With neither set, the push is skipped (local write still succeeds).
   get revenueApiUrl() {
-    return g("REVENUE_API_URL") ?? process.env.REVENUE_API_URL ?? "";
+    return g("REVENUE_API_URL") ?? "";
   },
   get revenueApiKey() {
-    return g("REVENUE_API_KEY") ?? process.env.REVENUE_API_KEY ?? "";
+    return g("REVENUE_API_KEY") ?? "";
   },
   // ── FirstCall revenue API (lead capture, https://sahiixx-firstcall.fly.dev) ──
   // Optional and INDEPENDENT of the sovereign bridge above. FirstCall exposes
@@ -155,14 +158,14 @@ export const env = {
   // FIRSTCALL_TOKEN is optional (the service has no auth today) and is sent as
   // `Authorization: Bearer` when set, so adding auth later needs no code change.
   get firstCallUrl() {
-    return g("FIRSTCALL_URL") ?? process.env.FIRSTCALL_URL ?? "";
+    return g("FIRSTCALL_URL") ?? "";
   },
   get firstCallToken() {
-    return g("FIRSTCALL_TOKEN") ?? process.env.FIRSTCALL_TOKEN ?? "";
+    return g("FIRSTCALL_TOKEN") ?? "";
   },
   /** Provider: explicit JARVIS_PROVIDER wins; else auto-pick mimo > xai > kimi > openrouter > ollama. */
   get jarvisProvider() {
-    const explicit = g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER;
+    const explicit = g("JARVIS_PROVIDER");
     if (explicit) return explicit;
     if (this.mimoApiKey) return "mimo";
     if (this.xaiApiKey) return "xai";
@@ -173,38 +176,38 @@ export const env = {
   get jarvisModel() {
     // Model id for the active provider. Default is OpenAI-compatible; set
     // JARVIS_MODEL explicitly (e.g. kimi-k2.6, grok-3-mini, mimo-v2.5-pro).
-    const p = g("JARVIS_PROVIDER") ?? process.env.JARVIS_PROVIDER ?? this.jarvisProvider;
-    if (p === "xai") return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? this.xaiModel;
-    if (p === "mimo") return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? this.mimoModel;
-    return g("JARVIS_MODEL") ?? process.env.JARVIS_MODEL ?? "openai/gpt-4o-mini";
+    const p = g("JARVIS_PROVIDER") ?? this.jarvisProvider;
+    if (p === "xai") return g("JARVIS_MODEL") ?? this.xaiModel;
+    if (p === "mimo") return g("JARVIS_MODEL") ?? this.mimoModel;
+    return g("JARVIS_MODEL") ?? "openai/gpt-4o-mini";
   },
   get jarvisOllamaModel() {
     // Local Ollama model tag. Default to llama3.2:3b — the only tool-capable model
     // pulled on this box (declares capabilities:["completion","tools"]). The smaller
     // models (qwen2.5:0.5b / llama3.2:1b / phi3:mini) tool-call unreliably and are NOT
     // pulled on the Windows Ollama anyway. For a real upgrade, set OPENROUTER_API_KEY.
-    return g("JARVIS_OLLAMA_MODEL") ?? process.env.JARVIS_OLLAMA_MODEL ?? "llama3.2:3b";
+    return g("JARVIS_OLLAMA_MODEL") ?? "llama3.2:3b";
   },
   get opaDispatchUrl() {
-    return g("OPA_DISPATCH_URL") ?? process.env.OPA_DISPATCH_URL ?? "http://localhost:8082/dispatch";
+    return g("OPA_DISPATCH_URL") ?? "http://localhost:8082/dispatch";
   },
   get opaApiKey() {
-    return g("OPA_API_KEY") ?? process.env.OPA_API_KEY;
+    return g("OPA_API_KEY");
   },
   // ── Live NEXUS / sahiix-estate (WSL app, optional public base URL) ──────────
   // Local Vite default hits WSL-bound :3001. On Cloudflare Pages set
   // ESTATE_API_URL to a tunnel / public host that reaches the estate API.
   get estateApiUrl() {
-    const explicit = g("ESTATE_API_URL") ?? process.env.ESTATE_API_URL;
+    const explicit = g("ESTATE_API_URL");
     if (explicit) return explicit;
     // Local Vite only — never default localhost on Cloudflare Pages/Workers.
-    const onPages = !!(g("CF_PAGES") || process.env.CF_PAGES);
-    const isProd = process.env.NODE_ENV === "production" || onPages;
+    const onPages = !!g("CF_PAGES");
+    const isProd = g("NODE_ENV") === "production" || onPages;
     if (!isProd) return "http://127.0.0.1:3001";
     return "";
   },
   get estateApiKey() {
-    return g("ESTATE_API_KEY") ?? process.env.ESTATE_API_KEY;
+    return g("ESTATE_API_KEY");
   },
   /**
    * Local Windows OS-control agent (screen/mouse/keyboard). Required on Cloudflare
@@ -212,10 +215,13 @@ export const env = {
    * and expose via tunnel; set JARVIS_OS_AGENT_URL + JARVIS_OS_TOKEN secrets.
    */
   get jarvisOsAgentUrl() {
-    return g("JARVIS_OS_AGENT_URL") ?? process.env.JARVIS_OS_AGENT_URL ?? "";
+    return g("JARVIS_OS_AGENT_URL") ?? "";
   },
   get jarvisOsToken() {
-    return g("JARVIS_OS_TOKEN") ?? process.env.JARVIS_OS_TOKEN ?? "";
+    return g("JARVIS_OS_TOKEN") ?? "";
+  },
+  get wslDistro() {
+    return g("WSL_DISTRO") ?? "Ubuntu";
   },
 };
 
@@ -273,3 +279,4 @@ export function setEstateApiUrl(u: string) { (globalThis as any).ESTATE_API_URL 
 export function setEstateApiKey(k: string) { (globalThis as any).ESTATE_API_KEY = cleanEnv(k) ?? ""; }
 export function setJarvisOsAgentUrl(u: string) { (globalThis as any).JARVIS_OS_AGENT_URL = cleanEnv(u) ?? ""; }
 export function setJarvisOsToken(k: string) { (globalThis as any).JARVIS_OS_TOKEN = cleanEnv(k) ?? ""; }
+export function setWslDistro(d: string) { (globalThis as any).WSL_DISTRO = cleanEnv(d) ?? ""; }

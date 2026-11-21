@@ -17,27 +17,26 @@ export default defineConfig(({ mode }) => {
     server: { port: 3000 },
     resolve: {
       alias: {
-        "@": path.resolve(__dirname, "./src"),
-        "@contracts": path.resolve(__dirname, "./contracts"),
-        "@db": path.resolve(__dirname, "./db"),
-        "db": path.resolve(__dirname, "./db"),
+        "@": path.resolve(import.meta.dirname, "./src"),
+        "@contracts": path.resolve(import.meta.dirname, "./contracts"),
+        "@db": path.resolve(import.meta.dirname, "./db"),
+        "db": path.resolve(import.meta.dirname, "./db"),
       },
     },
-    envDir: path.resolve(__dirname),
+    envDir: path.resolve(import.meta.dirname),
     // Cut log noise on Cloudflare Pages (hundreds of font lines truncated the deploy log).
     logLevel: mode === "production" ? "warn" : "info",
     build: {
-      outDir: path.resolve(__dirname, "dist/public"),
+      outDir: path.resolve(import.meta.dirname, "dist/public"),
       emptyOutDir: true,
       reportCompressedSize: false,
-      rollupOptions: {
+      rolldownOptions: {
         output: {
-          manualChunks: {
-            "react-vendor": ["react", "react-dom", "react-router-dom"],
-            "trpc-vendor": ["@trpc/client", "@trpc/react-query", "@trpc/server", "superjson", "@tanstack/react-query"],
-            "chart-vendor": ["recharts"],
-            "motion-vendor": ["framer-motion"],
-            "icon-vendor": ["lucide-react"],
+          codeSplitting: {
+            groups: [
+              { name: "react-vendor", test: /node_modules[\\/](react|react-dom|react-router)/ },
+              { name: "chart-vendor", test: /node_modules[\\/]recharts/ },
+            ],
           },
         },
       },

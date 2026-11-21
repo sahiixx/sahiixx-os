@@ -1,3 +1,4 @@
+import { runtimeBinding } from "./lib/runtime";
 /**
  * System ops surface: version, readiness, integration matrix, activity feed, metrics.
  * Built so the Status page and external monitors share one source of truth.
@@ -44,7 +45,7 @@ export const systemRouter = router({
   })),
 
   /** Full readiness: DB + mode + optional OPA (local only usually fails on Pages). */
-  status: publicProcedure.query(async () => {
+  status: protectedProcedure.query(async () => {
     let dbOk = false;
     let dbError: string | null = null;
     let agentCount: number | null = null;
@@ -62,8 +63,8 @@ export const systemRouter = router({
     const estate = await estateHealth();
 
     const integrations = {
-      database: { configured: !!(env.databaseUrl || (globalThis as any).__HYPERDRIVE_URL), ok: dbOk, mode, error: dbError, agentCount },
-      auth: { configured: true, hasCustomSecret: !!((globalThis as any).AUTH_SECRET || process.env.AUTH_SECRET) },
+      database: { configured: !!(env.databaseUrl || runtimeBinding("__HYPERDRIVE_URL")), ok: dbOk, mode, error: dbError, agentCount },
+      auth: { configured: true, hasCustomSecret: !!(runtimeBinding("AUTH_SECRET") || process.env.AUTH_SECRET) },
       openrouter: { configured: !!env.openRouterApiKey },
       xai: { configured: !!env.xaiApiKey },
       mimo: { configured: !!env.mimoApiKey },
@@ -91,7 +92,7 @@ export const systemRouter = router({
         model: env.jarvisProvider === "ollama" ? env.jarvisOllamaModel : env.jarvisModel,
       },
       workersAi: {
-        configured: !!(globalThis as any).__WORKERS_AI,
+        configured: !!runtimeBinding("__WORKERS_AI"),
       },
     };
 
@@ -107,10 +108,10 @@ export const systemRouter = router({
     };
   }),
 
-  integrations: publicProcedure.query(async () => {
+  integrations: protectedProcedure.query(async () => {
     // Lightweight subset for polling without OPA fetch on every tick
     return {
-      database: !!(env.databaseUrl || (globalThis as any).__HYPERDRIVE_URL),
+      database: !!(env.databaseUrl || runtimeBinding("__HYPERDRIVE_URL")),
       openrouter: !!env.openRouterApiKey,
       xai: !!env.xaiApiKey,
       mimo: !!env.mimoApiKey,
@@ -125,13 +126,13 @@ export const systemRouter = router({
     };
   }),
 
-  activityList: publicProcedure
+  activityList: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
     .query(async ({ input }) => {
       return listActivity(input?.limit ?? 50);
     }),
 
-  metrics: publicProcedure.query(() => ({
+  metrics: protectedProcedure.query(() => ({
     uptimeSec: getUptimeSec(),
     counters: getCounters(),
     version: APP_VERSION,
@@ -151,7 +152,7 @@ export const systemRouter = router({
 
   /** Edge Workers AI smoke (cheap model). Returns unavailable if AI binding missing. */
   workersAiProbe: protectedProcedure.mutation(async ({ ctx }) => {
-    const ai = (globalThis as any).__WORKERS_AI as
+    const ai = runtimeBinding("__WORKERS_AI") as
       | { run: (m: string, i: Record<string, unknown>) => Promise<unknown> }
       | undefined;
     if (!ai?.run) {

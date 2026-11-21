@@ -3,9 +3,12 @@
 # Named tunnel connector stays separate (estate-tunnel.service).
 set -euo pipefail
 CF="${HOME}/.local/bin/cloudflared"
-LOG="/mnt/c/Users/sahii/sahiixx-os/scripts/estate-public-quick.log"
-PIDF="/mnt/c/Users/sahii/sahiixx-os/scripts/estate-public-quick.pid"
-URLF="/mnt/c/Users/sahii/sahiixx-os/scripts/estate-tunnel.url"
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=estate-health.sh
+source "$ROOT/scripts/estate-health.sh"
+LOG="$ROOT/scripts/estate-public-quick.log"
+PIDF="$ROOT/scripts/estate-public-quick.pid"
+URLF="$ROOT/scripts/estate-tunnel.url"
 
 if [ -f "$PIDF" ]; then
   old=$(cat "$PIDF" || true)
@@ -25,18 +28,15 @@ for i in $(seq 1 30); do
   if [ -n "$U" ]; then
     # Wait until origin is reachable through the edge
     for j in $(seq 1 20); do
-      if curl -fsS -m 8 "$U/health" >/dev/null 2>&1; then
+      if estate_publish_url "$U" "$URLF"; then
         echo "$U"
-        echo "$U" > "$URLF"
         echo "$U" > "${HOME}/estate-tunnel.url" 2>/dev/null || true
         exit 0
       fi
       sleep 1
     done
-    echo "$U" > "$URLF"
-    echo "WARN tunnel URL up but /health not ready yet: $U" >&2
-    echo "$U"
-    exit 0
+    echo "FAIL public /health not ready; previous published URL preserved" >&2
+    exit 1
   fi
   sleep 1
 done

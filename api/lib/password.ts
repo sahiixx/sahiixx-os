@@ -2,7 +2,7 @@
 // Node (>=20, globalThis.crypto) and Cloudflare Workers (crypto.subtle).
 // Stored format: pbkdf2$<iterations>$<saltB64>$<hashB64>
 
-const ITERATIONS = 100_000;
+const ITERATIONS = 600_000;
 const SALT_BYTES = 16;
 const HASH_BYTES = 32;
 const ALGO = "PBKDF2";
@@ -26,15 +26,18 @@ export async function verifyPassword(plain: string, stored: string | null | unde
   if (!stored) return false;
   const parts = stored.split("$");
   if (parts.length !== 4 || parts[0] !== "pbkdf2") return false;
-  const iterations = Number(parts[1]);
-  const salt = Uint8Array.from(atob(parts[2]), (c) => c.charCodeAt(0));
-  const expected = parts[3];
-  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(plain), ALGO, false, ["deriveBits"]);
-  const hash = await crypto.subtle.deriveBits(
-    { name: ALGO, salt, iterations, hash: "SHA-256" },
-    keyMaterial,
-    HASH_BYTES * 8
-  );
-  // constant-time-ish compare via b64 (sufficient for hashed output)
-  return b64(hash) === expected;
+  try {
+    const iterations = Number(parts[1]);
+    if (!Number.isSafeInteger(iterations) || iterations < 100_000 || iterations > 1_000_000) return false;
+    const salt = Uint8Array.from(atob(parts[2]), (c) => c.charCodeAt(0));
+    const expected = Uint8Array.from(atob(parts[3]), (c) => c.charCodeAt(0));
+    if (salt.length !== SALT_BYTES || expected.length !== HASH_BYTES || plain.length > 1024) return false;
+    const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(plain), ALGO, false, ["deriveBits"]);
+    const hash = new Uint8Array(await crypto.subtle.deriveBits(
+      { name: ALGO, salt, iterations, hash: "SHA-256" }, keyMaterial, HASH_BYTES * 8,
+    ));
+    let difference = 0;
+    for (let i = 0; i < HASH_BYTES; i++) difference |= hash[i] ^ expected[i];
+    return difference === 0;
+  } catch { return false; }
 }

@@ -5,7 +5,7 @@ import { setSession } from "@/lib/auth";
 import { LiveDot } from "@/components/ui";
 
 export default function Login() {
-  const [email, setEmail] = useState("admin@sahiixx.os");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);

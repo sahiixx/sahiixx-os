@@ -1,5 +1,6 @@
+import { requireDevelopmentFallback } from "./lib/production-policy";
 import { z } from "zod";
-import { router, publicProcedure, protectedProcedure } from "./context";
+import { router, protectedProcedure } from "./context";
 import { getDb } from "./queries/connection";
 import { agents, mcpServers, deals, contacts, campaigns, videos, signalAlerts, deployedAgents } from "@db/schema";
 import { eq, desc, like, sql, inArray } from "drizzle-orm";
@@ -22,12 +23,13 @@ import { logActivity } from "./lib/activity";
 
 export const sahiixxRouter = router({
   // ── DB health probe ───────────────────────────────────────────────────────
-  dbStatus: publicProcedure.query(async () => {
+  dbStatus: protectedProcedure.query(async () => {
     try {
       const db = getDb();
       await db.select().from(agents).limit(1);
       return { demo: false, error: null as string | null };
     } catch (e: any) {
+      requireDevelopmentFallback();
       const cause = e?.cause?.message ?? e?.cause ?? "";
       const msg = [e?.message ?? String(e), cause].filter(Boolean).join(" | ");
       return { demo: true, error: msg.slice(0, 300) };
@@ -35,11 +37,12 @@ export const sahiixxRouter = router({
   }),
 
   // ── agents ────────────────────────────────────────────────────────────────
-  agentList: publicProcedure.query(async (): Promise<AgentRow[]> => {
+  agentList: protectedProcedure.query(async (): Promise<AgentRow[]> => {
     try {
       const db = getDb();
       return await db.select().from(agents).orderBy(desc(agents.updatedAt));
     } catch {
+      requireDevelopmentFallback();
       return [...demoAgents].sort((a, b) => (b.updatedAt ?? new Date(0)).getTime() - (a.updatedAt ?? new Date(0)).getTime());
     }
   }),
@@ -60,6 +63,7 @@ export const sahiixxRouter = router({
       });
       return { success: true, demo: false };
     } catch {
+      requireDevelopmentFallback();
       addDemoAgent({
         name: input.name, type: input.type, model: input.model ?? "sonnet-4.6",
         status: input.status ?? "idle", task: input.task ?? null, progress: 0, output: null,
@@ -78,6 +82,7 @@ export const sahiixxRouter = router({
       await db.update(agents).set(data as any).where(eq(agents.id, id));
       return { success: true, demo: false };
     } catch {
+      requireDevelopmentFallback();
       const a = demoAgents.find((x) => x.id === input.id);
       if (a) {
         if (input.status) a.status = input.status;
@@ -96,6 +101,7 @@ export const sahiixxRouter = router({
       await db.delete(agents).where(eq(agents.id, input.id));
       return { success: true, demo: false };
     } catch {
+      requireDevelopmentFallback();
       const i = demoAgents.findIndex((x) => x.id === input.id);
       if (i >= 0) demoAgents.splice(i, 1);
       return { success: true, demo: true };
@@ -103,21 +109,23 @@ export const sahiixxRouter = router({
   }),
 
   // ── mcp ───────────────────────────────────────────────────────────────────
-  mcpList: publicProcedure.query(async (): Promise<McpRow[]> => {
+  mcpList: protectedProcedure.query(async (): Promise<McpRow[]> => {
     try {
       const db = getDb();
       return await db.select().from(mcpServers);
     } catch {
+      requireDevelopmentFallback();
       return [...demoMcp];
     }
   }),
 
   // ── deals ──────────────────────────────────────────────────────────────────
-  dealList: publicProcedure.query(async (): Promise<DealRow[]> => {
+  dealList: protectedProcedure.query(async (): Promise<DealRow[]> => {
     try {
       const db = getDb();
       return await db.select().from(deals).orderBy(desc(deals.score));
     } catch {
+      requireDevelopmentFallback();
       return [...demoDeals].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     }
   }),
@@ -139,6 +147,7 @@ export const sahiixxRouter = router({
       });
       return { success: true, demo: false };
     } catch {
+      requireDevelopmentFallback();
       addDemoDeal({
         dealId: input.dealId, property: input.property, type: input.type ?? null,
         area: input.area ?? null, priceAed: input.priceAed, score: input.score ?? 0,
@@ -169,6 +178,7 @@ export const sahiixxRouter = router({
       });
       return { success: true, demo: false };
     } catch {
+      requireDevelopmentFallback();
       const d = demoDeals.find((x) => x.id === input.id);
       if (d) {
         if (input.tier) d.tier = input.tier;
@@ -182,20 +192,22 @@ export const sahiixxRouter = router({
   }),
 
   // ── contacts ───────────────────────────────────────────────────────────────
-  contactList: publicProcedure.query(async (): Promise<ContactRow[]> => {
+  contactList: protectedProcedure.query(async (): Promise<ContactRow[]> => {
     try {
       const db = getDb();
       return await db.select().from(contacts).orderBy(desc(contacts.rfmScore));
     } catch {
+      requireDevelopmentFallback();
       return [...demoContacts].sort((a, b) => (b.rfmScore ?? 0) - (a.rfmScore ?? 0));
     }
   }),
 
-  contactSearch: publicProcedure.input(z.object({ query: z.string() })).query(async ({ input }): Promise<ContactRow[]> => {
+  contactSearch: protectedProcedure.input(z.object({ query: z.string() })).query(async ({ input }): Promise<ContactRow[]> => {
     try {
       const db = getDb();
       return await db.select().from(contacts).where(like(contacts.name, `%${input.query}%`));
     } catch {
+      requireDevelopmentFallback();
       const q = input.query.toLowerCase();
       return demoContacts.filter((c) => c.name.toLowerCase().includes(q) || (c.area ?? "").toLowerCase().includes(q));
     }
@@ -217,6 +229,7 @@ export const sahiixxRouter = router({
       });
       return { success: true, demo: false };
     } catch {
+      requireDevelopmentFallback();
       addDemoContact({
         name: input.name, phone: input.phone ?? null, email: input.email ?? null,
         units: input.units ?? 0, totalValue: input.totalValue ?? 0, rfmScore: input.rfmScore ?? 0,
@@ -227,11 +240,12 @@ export const sahiixxRouter = router({
   }),
 
   // ── campaigns ──────────────────────────────────────────────────────────────
-  campaignList: publicProcedure.query(async (): Promise<CampaignRow[]> => {
+  campaignList: protectedProcedure.query(async (): Promise<CampaignRow[]> => {
     try {
       const db = getDb();
       return await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
     } catch {
+      requireDevelopmentFallback();
       return [...demoCampaigns].sort((a, b) => (b.createdAt ?? new Date(0)).getTime() - (a.createdAt ?? new Date(0)).getTime());
     }
   }),
@@ -244,6 +258,7 @@ export const sahiixxRouter = router({
       await db.insert(campaigns).values(input as any);
       return { success: true, demo: false };
     } catch {
+      requireDevelopmentFallback();
       addDemoCampaign({
         name: input.name, template: input.template ?? null,
         language: input.language ?? "English", sent: 0, delivered: 0, opened: 0, status: "draft",
@@ -253,11 +268,12 @@ export const sahiixxRouter = router({
   }),
 
   // ── videos ─────────────────────────────────────────────────────────────────
-  videoList: publicProcedure.query(async (): Promise<VideoRow[]> => {
+  videoList: protectedProcedure.query(async (): Promise<VideoRow[]> => {
     try {
       const db = getDb();
       return await db.select().from(videos).orderBy(desc(videos.createdAt));
     } catch {
+      requireDevelopmentFallback();
       return [...demoVideos].sort((a, b) => (b.createdAt ?? new Date(0)).getTime() - (a.createdAt ?? new Date(0)).getTime());
     }
   }),
@@ -270,6 +286,7 @@ export const sahiixxRouter = router({
       await db.insert(videos).values(input as any);
       return { success: true, demo: false };
     } catch {
+      requireDevelopmentFallback();
       addDemoVideo({
         title: input.title, status: input.status ?? "pending",
         platform: input.platform ?? null, progress: 0, duration: input.duration ?? null,
@@ -279,11 +296,12 @@ export const sahiixxRouter = router({
   }),
 
   // ── signals ─────────────────────────────────────────────────────────────────
-  signalList: publicProcedure.query(async (): Promise<SignalRow[]> => {
+  signalList: protectedProcedure.query(async (): Promise<SignalRow[]> => {
     try {
       const db = getDb();
       return await db.select().from(signalAlerts).orderBy(desc(signalAlerts.timestamp));
     } catch {
+      requireDevelopmentFallback();
       return [...demoSignals].sort((a, b) => (b.timestamp ?? new Date(0)).getTime() - (a.timestamp ?? new Date(0)).getTime());
     }
   }),
@@ -333,6 +351,7 @@ export const sahiixxRouter = router({
       await pushFirstCall();
       return { success: true, demo: false, sovereign: sovereignResult ?? null, firstcall: firstcallResult ?? null };
     } catch {
+      requireDevelopmentFallback();
       addDemoSignal({
         category: input.category, severity: input.severity, message: input.message, source: input.source ?? null,
       });
@@ -351,11 +370,12 @@ export const sahiixxRouter = router({
   }),
 
   // ── deployed agents ─────────────────────────────────────────────────────────
-  deployedList: publicProcedure.query(async (): Promise<DeployedRow[]> => {
+  deployedList: protectedProcedure.query(async (): Promise<DeployedRow[]> => {
     try {
       const db = getDb();
       return await db.select().from(deployedAgents).orderBy(desc(deployedAgents.createdAt));
     } catch {
+      requireDevelopmentFallback();
       return [...demoDeployed].sort((a, b) => (b.createdAt ?? new Date(0)).getTime() - (a.createdAt ?? new Date(0)).getTime());
     }
   }),
@@ -368,13 +388,15 @@ export const sahiixxRouter = router({
       await db.insert(deployedAgents).values(input);
       return { success: true, demo: false };
     } catch {
+      requireDevelopmentFallback();
       addDemoDeployed({ name: input.name, template: input.template, status: "deploying", target: input.target });
       return { success: true, demo: true };
     }
   }),
 
   // ── Command Center live ops data ───────────────────────────────────────────
-  opsMetrics: publicProcedure.query(async () => {
+  opsMetrics: protectedProcedure.query(async () => {
+    requireDevelopmentFallback();
     // Base synthetic host metrics + real agent busy count when DB is live
     const base = liveMetrics();
     try {
@@ -386,20 +408,21 @@ export const sahiixxRouter = router({
       return {
         ...base,
         activeAgents: Number(busy[0]?.n ?? 0),
-        source: "live+db" as const,
+        source: "synthetic+db" as const,
       };
     } catch {
+      requireDevelopmentFallback();
       return { ...base, source: "synthetic" as const };
     }
   }),
-  opsPipeline: publicProcedure.query(async () => {
+  opsPipeline: protectedProcedure.query(async () => {
     return pipelineStages;
   }),
-  opsModels: publicProcedure.query(async () => {
+  opsModels: protectedProcedure.query(async () => {
     return modelRegistry;
   }),
   /** Hub launcher counts — prefer Neon, fall back to in-memory demo seed. */
-  moduleCounts: publicProcedure.query(async () => {
+  moduleCounts: protectedProcedure.query(async () => {
     try {
       const db = getDb();
       const [a, d, c, camp, v, s, dep, m] = await Promise.all([
@@ -439,6 +462,7 @@ export const sahiixxRouter = router({
         source: "db" as const,
       };
     } catch {
+      requireDevelopmentFallback();
       return { ...demoModuleCounts(), source: "demo" as const };
     }
   }),
@@ -446,11 +470,11 @@ export const sahiixxRouter = router({
   // ── Postiz (SARA content factory — real social scheduling) ──────────────────
   // All three gracefully return {available:false} when Postiz isn't configured
   // (no POSTIZ_API_URL/KEY), so the SARA page shows local-tracking mode instead.
-  postizStatus: publicProcedure.query(async () => {
+  postizStatus: protectedProcedure.query(async () => {
     return probePostiz();
   }),
 
-  postizIntegrations: publicProcedure.query(async (): Promise<{ available: boolean; integrations: PostizIntegration[]; error: string | null }> => {
+  postizIntegrations: protectedProcedure.query(async (): Promise<{ available: boolean; integrations: PostizIntegration[]; error: string | null }> => {
     try {
       const list = await listIntegrations();
       if (list == null) return { available: false, integrations: [], error: null };
@@ -488,7 +512,7 @@ export const sahiixxRouter = router({
   // Pushes a scored lead into the live sovereign pipeline and returns the
   // scored envelope. Public (no auth) so the bridge can be exercised from
   // automation without a session; the sovereign API itself enforces X-API-Key.
-  ingestLead: publicProcedure.input(z.object({
+  ingestLead: protectedProcedure.input(z.object({
     message: z.string(),
     name: z.string().optional(),
     phone: z.string().optional(),
@@ -507,7 +531,7 @@ export const sahiixxRouter = router({
     }
   }),
 
-  sovereignStatus: publicProcedure.query(async () => {
+  sovereignStatus: protectedProcedure.query(async () => {
     return probeSovereign();
   }),
 
@@ -516,11 +540,11 @@ export const sahiixxRouter = router({
   // (/health + /v1/leads, no /pipeline/process). Public (no auth) so the bridge
   // can be exercised from automation without a session; the FirstCall service
   // enforces its own auth via FIRSTCALL_TOKEN when one is configured.
-  firstcallStatus: publicProcedure.query(async () => {
+  firstcallStatus: protectedProcedure.query(async () => {
     return probeFirstCall();
   }),
 
-  firstcallIngestLead: publicProcedure.input(z.object({
+  firstcallIngestLead: protectedProcedure.input(z.object({
     full_name: z.string().optional(),
     name: z.string().optional(),
     email: z.string().optional(),

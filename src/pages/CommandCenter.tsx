@@ -65,12 +65,12 @@ export default function CommandCenter() {
       stages.forEach((s) => next.push(`  ${s.status === "done" ? "✓" : s.status === "active" ? "▸" : "·"} ${s.stage} — ${s.detail}`));
       if (stages.length) next.push(`Deployment pipeline: ${stages.filter((s) => s.status === "done").length}/${stages.length} stages complete`);
     } else if (cmd === "/test") {
-      next.push("Running test suite...");
-      next.push("247 tests passed, 0 failed · Coverage 87.3%");
+      next.push("Tests are managed by CI.");
+      next.push("Run the repository test suite in CI to obtain verified results.");
     } else if (cmd === "/fix") {
-      next.push("Scanning src/ directory...");
-      next.push("Found 47 errors in 12 files");
-      next.push("Auto-fixed 31 errors · 16 manual fixes required");
+      next.push("Source repairs require a reviewed code change.");
+      next.push("Automatic source scanning is unavailable from this console.");
+      next.push("No source files were changed.");
     } else if (cmd === "/rep") {
       if (m) next.push(`CPU: ${m.cpuPct}% (${m.cpuCores} cores)  Memory: ${m.memGb}GB / ${m.memTotalGb}GB  Disk: ${m.diskPct}% used`);
       if (m) next.push(`Network: TX ${m.netTx} MB/s  RX ${m.netRx} MB/s  Uptime: ${m.uptimeDays}d ${m.uptimeH}h ${m.uptimeM}m`);
@@ -196,7 +196,7 @@ export default function CommandCenter() {
         {/* right: system metrics + models */}
         <div className="space-y-6">
           <Panel className="p-4">
-            <h2 className="font-display text-sm tracking-widest text-text-secondary mb-3">SYSTEM</h2>
+            <h2 className="font-display text-sm tracking-widest text-text-secondary mb-3">SYSTEM · {m ? "DEMONSTRATION METRICS" : "TELEMETRY UNAVAILABLE"}</h2>
             {m && (
               <div className="space-y-2 font-mono text-xs">
                 <Metric label="CPU" value={`${m.cpuPct}%`} sub={`${m.cpuCores} cores`} pct={m.cpuPct} tone="warning" />

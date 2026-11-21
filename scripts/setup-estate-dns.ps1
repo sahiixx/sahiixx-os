@@ -92,4 +92,5 @@ $url | Set-Content (Join-Path $PSScriptRoot "estate-tunnel.url") -NoNewline
 Write-Host ""
 Write-Host "Done. Public estate URL: $url"
 Write-Host "Probe: curl -sS $url/health"
-Write-Host "If tunnel connector is down: wsl -d Ubuntu-24.04 -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/install-named-estate-tunnel.sh"
+$distro = if ($env:WSL_DISTRO) { $env:WSL_DISTRO } else { "Ubuntu" }
+Write-Host "If tunnel connector is down: wsl -d $distro -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/install-named-estate-tunnel.sh"

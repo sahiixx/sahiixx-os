@@ -8,32 +8,21 @@
 #   FORCE_SYNC=1     re-put secret even if URL unchanged
 set -euo pipefail
 
-ROOT="/mnt/c/Users/sahii/sahiixx-os"
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=estate-health.sh
+source "$ROOT/scripts/estate-health.sh"
 LOG="$ROOT/scripts/estate-public-quick.log"
 PIDF="$ROOT/scripts/estate-public-quick.pid"
 URLF="$ROOT/scripts/estate-tunnel.url"
 HEAL_LOG="$ROOT/scripts/estate-public-heal.log"
 START_SCRIPT="$ROOT/scripts/start-estate-public-quick.sh"
-SYNC_PS1="C:\\\\Users\\\\sahii\\\\sahiixx-os\\\\scripts\\\\sync-estate-secret.ps1"
+SYNC_PS1=""
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" | tee -a "$HEAL_LOG"; }
 
 public_ok() {
   local u="$1"
-  # Prefer direct curl; fall back to origin+pid when local DNS NXDOMAINs trycloudflare
-  if curl -fsS -m 10 "$u/health" >/dev/null 2>&1; then
-    return 0
-  fi
-  if [[ -f "$PIDF" ]]; then
-    local pid
-    pid=$(tr -d ' \r\n' < "$PIDF" || true)
-    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
-      if curl -fsS -m 4 http://127.0.0.1:3001/health >/dev/null 2>&1; then
-        return 0
-      fi
-    fi
-  fi
-  return 1
+  estate_public_ok "$u"
 }
 
 systemctl --user start estate-api 2>/dev/null || true
@@ -80,7 +69,8 @@ fi
 
 # Sync + redeploy when URL changed (or forced). Uses Windows PowerShell script.
 if [[ "${SYNC_PAGES:-0}" == "1" ]] && [[ "$NEW_URL" != "$OLD_URL" || "${FORCE_SYNC:-0}" == "1" || "$need_restart" == "1" ]]; then
-  if command -v powershell.exe >/dev/null 2>&1; then
+  if command -v powershell.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+    SYNC_PS1=$(wslpath -w "$ROOT/scripts/sync-estate-secret.ps1")
     log "syncing Pages secret + redeploy for $NEW_URL ..."
     if powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SYNC_PS1" -Url "$NEW_URL" >>"$HEAL_LOG" 2>&1; then
       log "Pages sync OK"

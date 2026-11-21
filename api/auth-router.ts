@@ -17,6 +17,8 @@ async function signToken(email: string, role: string): Promise<string> {
   return new SignJWT({ role })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(email)
+    .setIssuer("sahiixx-os")
+    .setAudience("sahiixx-os-client")
     .setIssuedAt()
     .setExpirationTime("12h")
     .sign(secretBytes());
@@ -28,7 +30,7 @@ export const authRouter = router({
   login: publicProcedure
     .input(z.object({
       email: z.string().email(),
-      password: z.string(),
+      password: z.string().max(1024),
       /** Optional client hint for audit (never trusted for auth). */
       client: z.string().max(80).optional(),
     }))
@@ -73,11 +75,12 @@ export const authRouter = router({
           return { success: true as const, token, user: { email: row.email, role: row.role ?? "user" } };
         }
       } catch {
-        // DB not reachable / table missing → fall through to env-admin fallback
+        if (env.production) throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Authentication is unavailable" });
+        // Development may use the local fixture administrator.
       }
 
       // 2. Env-admin bootstrap fallback
-      const envMatch =
+      const envMatch = !env.production &&
         emailKey === env.adminEmail.toLowerCase() &&
         input.password === env.adminPassword;
       if (envMatch) {

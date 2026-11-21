@@ -21,6 +21,9 @@ import {
   deployedAgents,
 } from "@db/schema";
 
+if (process.env.APP_ENV !== "development" || process.env.SEED_FIXTURE_DATABASE !== "I_UNDERSTAND_THIS_DELETES_FIXTURE_DATA") {
+  throw new Error("Seeding requires APP_ENV=development and explicit SEED_FIXTURE_DATABASE acknowledgement on a disposable database");
+}
 const db = getDb();
 
 const agentRows: (typeof agents.$inferInsert)[] = [
