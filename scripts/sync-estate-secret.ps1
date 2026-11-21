@@ -8,7 +8,8 @@ param(
 $ErrorActionPreference = "Stop"
 Remove-Item Env:CLOUDFLARE_API_TOKEN -ErrorAction SilentlyContinue
 
-$Root = "C:\Users\sahii\sahiixx-os"
+$Root = Split-Path -Parent $PSScriptRoot
+if (-not (Test-Path (Join-Path $Root "package.json"))) { $Root = "F:\01_Projects\repos\sahiixx-os" }
 if (-not $Url) {
   $f = Join-Path $Root "scripts\estate-tunnel.url"
   if (-not (Test-Path $f)) { throw "No URL file $f - run start-estate-public-quick.sh first" }

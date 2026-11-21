@@ -2,7 +2,7 @@
  * NEXUS live bridge — proxies the WSL sahiix-estate API into tRPC.
  */
 import { z } from "zod";
-import { router, protectedProcedure } from "./context";
+import { router, publicProcedure, protectedProcedure } from "./context";
 import { estateConfigured, estateHealth, estateLeads } from "./lib/estate";
 import { env } from "./lib/env";
 import { logActivity } from "./lib/activity";
@@ -18,7 +18,7 @@ export const nexusRouter = router({
       : "Set ESTATE_API_URL (tunnel/public) for prod; local dev defaults to http://127.0.0.1:3001",
   })),
 
-  estateHealth: protectedProcedure.query(async () => estateHealth()),
+  estateHealth: publicProcedure.query(async () => estateHealth()),
 
   estateLeads: protectedProcedure.query(async () => estateLeads()),
 
