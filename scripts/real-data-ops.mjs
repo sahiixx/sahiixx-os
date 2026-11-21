@@ -50,9 +50,10 @@ const sql = postgres(DATABASE_URL, { ssl: "require", max: 1 });
 
 function readEstateDb() {
   // Python on WSL — no sqlite3 CLI required
+  const estateDb = process.env.ESTATE_DB_PATH || "";
   const py = `
-import sqlite3, json
-db = "/home/xx/projects/sahiix-estate/estate.db"
+import os, sqlite3, json
+db = os.environ.get("ESTATE_DB_PATH") or ${JSON.stringify(estateDb)} or os.path.expanduser("~/projects/sahiix-estate/estate.db")
 con = sqlite3.connect(db)
 con.row_factory = sqlite3.Row
 cur = con.cursor()
@@ -209,10 +210,12 @@ async function importLeadsCsv(path) {
       notes: lead.notes,
     });
     // Insert via python into estate.db for reliability even if tunnel flaky
+    const estateDb = process.env.ESTATE_DB_PATH || "";
     const py = `
-import sqlite3, json
+import os, sqlite3, json
 lead = json.loads(${JSON.stringify(body)})
-con = sqlite3.connect("/home/xx/projects/sahiix-estate/estate.db")
+db = os.environ.get("ESTATE_DB_PATH") or ${JSON.stringify(estateDb)} or os.path.expanduser("~/projects/sahiix-estate/estate.db")
+con = sqlite3.connect(db)
 cur = con.cursor()
 cur.execute(
   "INSERT INTO leads (name, phone, email, property_id, notes) VALUES (?,?,?,?,?)",

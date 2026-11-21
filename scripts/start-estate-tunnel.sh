@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CF="${HOME}/.local/bin/cloudflared"
-LOG="/mnt/c/Users/sahii/sahiixx-os/scripts/estate-tunnel.log"
-PIDF="/mnt/c/Users/sahii/sahiixx-os/scripts/estate-tunnel.pid"
+LOG="$SCRIPT_DIR/estate-tunnel.log"
+PIDF="$SCRIPT_DIR/estate-tunnel.pid"
 
 # kill previous
 if [ -f "$PIDF" ]; then

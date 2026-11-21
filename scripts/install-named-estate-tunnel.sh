@@ -3,14 +3,15 @@
 # Token file: ~/.cloudflared/sahiix-estate.token  (or scripts/.estate-tunnel-token on Windows mount)
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CF="${HOME}/.local/bin/cloudflared"
 TOKEN_DST="${HOME}/.cloudflared/sahiix-estate.token"
-TOKEN_SRC_WIN="/mnt/c/Users/sahii/sahiixx-os/scripts/.estate-tunnel-token"
+TOKEN_SRC_WIN="$SCRIPT_DIR/.estate-tunnel-token"
 UNIT_DST="${HOME}/.config/systemd/user/estate-tunnel.service"
 LOG="${HOME}/estate-tunnel.log"
-WIN_LOG="/mnt/c/Users/sahii/sahiixx-os/scripts/estate-tunnel.log"
+WIN_LOG="$SCRIPT_DIR/estate-tunnel.log"
 URL_FILE="${HOME}/estate-tunnel.url"
-WIN_URL="/mnt/c/Users/sahii/sahiixx-os/scripts/estate-tunnel.url"
+WIN_URL="$SCRIPT_DIR/estate-tunnel.url"
 
 # Tunnel UUID (sahiix-estate) — public hostname after DNS CNAME:
 #   estate.<your-zone> → 4d78e2cb-36d3-4785-9e7d-a84d1181f651.cfargotunnel.com

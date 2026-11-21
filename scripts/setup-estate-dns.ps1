@@ -93,4 +93,5 @@ Write-Host ""
 Write-Host "Done. Public estate URL: $url"
 Write-Host "Probe: curl -sS $url/health"
 $distro = if ($env:WSL_DISTRO) { $env:WSL_DISTRO } else { "Ubuntu" }
-Write-Host "If tunnel connector is down: wsl -d $distro -- bash /mnt/c/Users/sahii/sahiixx-os/scripts/install-named-estate-tunnel.sh"
+$installSh = [regex]::Replace((Join-Path $PSScriptRoot "install-named-estate-tunnel.sh") -replace '\\', '/', '^([A-Za-z]):', { param($m) "/mnt/" + $m.Groups[1].Value.ToLower() })
+Write-Host "If tunnel connector is down: wsl -d $distro -- bash `"$installSh`""

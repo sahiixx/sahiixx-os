@@ -2,9 +2,10 @@
 # Parse trycloudflare URL from cloudflared log and print it.
 # Optional: SYNC_PAGES=1 CLOUDFLARE_API_TOKEN=... wrangler in PATH → put ESTATE_API_URL
 set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 LOGS=(
   "$HOME/estate-tunnel.log"
-  "/mnt/c/Users/sahii/sahiixx-os/scripts/estate-tunnel.log"
+  "$SCRIPT_DIR/estate-tunnel.log"
 )
 URL=""
 for f in "${LOGS[@]}"; do
@@ -19,7 +20,7 @@ if [ -z "$URL" ]; then
 fi
 echo "$URL"
 # write local cache for tools
-echo "$URL" > /mnt/c/Users/sahii/sahiixx-os/scripts/estate-tunnel.url 2>/dev/null || true
+echo "$URL" > "$SCRIPT_DIR/estate-tunnel.url" 2>/dev/null || true
 echo "$URL" > "$HOME/estate-tunnel.url" 2>/dev/null || true
 
 if [ "${SYNC_PAGES:-0}" = "1" ]; then
